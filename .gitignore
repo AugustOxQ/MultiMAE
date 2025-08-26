@@ -154,11 +154,10 @@ dmypy.json
 *.json
 
 # Folder
-dataset/
+dataset/*
 wandb/
 other/
 out/
 output/
 outputs/
 notebooks/
-
