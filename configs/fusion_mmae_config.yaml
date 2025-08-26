@@ -21,8 +21,8 @@ train:
   eval_batch_size: 256
   weight_decay: 5.0e-2
   seed: 42
-  save_dir: ""
-  save_interval: 0
+  save_dir: None
+  save_interval: 10
   data_root: /data/SSD/coco/images/
   num_workers: 8
   # Early stopping parameters

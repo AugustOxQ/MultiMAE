@@ -67,7 +67,7 @@ def main(cfg: DictConfig) -> None:
         mae_weight=cfg.loss.mae_weight,
         mlm_weight=cfg.loss.mlm_weight,
         contrastive_weight=cfg.loss.contrastive_weight,
-        save_dir=None,  # Note during testing, we do not save model checkpoints
+        save_dir=cfg.train.save_dir,  # Note during testing, we do not save model checkpoints
         save_interval=cfg.train.save_interval,
         logger=wandb_logger,
         # Early stopping parameters
