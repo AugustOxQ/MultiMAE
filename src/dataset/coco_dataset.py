@@ -46,7 +46,7 @@ class COCOImageTextDataset(Dataset):
             )
 
         with open(self.annotation_file, "r") as f:
-            self.data = json.load(f)
+            self.data = json.load(f)  # [:1000]  # Only when testing different functions
 
         # Setup transforms
         self.transform = Compose(

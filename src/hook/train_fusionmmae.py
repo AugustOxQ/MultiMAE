@@ -374,7 +374,7 @@ def train_fusionmmae(
     )
 
     # prepare test loader
-    (test_loader,) = accelerator.prepare(test_loader)
+    test_loader = accelerator.prepare(test_loader)
 
     fusion_model.eval()
     test_losses = []

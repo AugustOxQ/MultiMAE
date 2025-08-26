@@ -62,7 +62,7 @@ def calculate_average_precision(correct_positions, total_relevant):
     return ap_sum / total_relevant
 
 
-def calculate_metrics(inds, mappings, captions_per_image):
+def calculate_metrics(inds, mappings, captions_per_image, device):
     """
     Calculate R-Precision and mAP for a set of rankings (inds) given the correct mappings.
     inds: Sorted indices for predictions.
@@ -237,7 +237,9 @@ def evalrank(model, data_loader, npts=None, accelerator: Optional[Accelerator] =
         num_correct = correct.sum().item()
         text_to_image_recall.append(num_correct / num_text * 100)
 
-    meanR_t2i, medR_t2i, mAP_t2i = calculate_metrics(inds, text_to_image_map, 1)
+    meanR_t2i, medR_t2i, mAP_t2i = calculate_metrics(
+        inds, text_to_image_map, 1, device=inds.device
+    )
 
     # image-to-text recall
     (
@@ -271,7 +273,9 @@ def evalrank(model, data_loader, npts=None, accelerator: Optional[Accelerator] =
         num_correct = correct.sum().item()
         image_to_text_recall.append(num_correct / num_im * 100)  #
 
-    meanR_i2t, medR_i2t, mAP_i2t = calculate_metrics(inds, image_to_text_map, 5)
+    meanR_i2t, medR_i2t, mAP_i2t = calculate_metrics(
+        inds, image_to_text_map, 5, device=inds.device
+    )
 
     accelerator.print("Done.") if accelerator else print("Done.")
     metrics = {

@@ -5,7 +5,7 @@ set -euo pipefail
 if command -v nvidia-smi >/dev/null 2>&1; then
   if [ -n "${CUDA_VISIBLE_DEVICES-}" ]; then
     IFS=',' read -r -a __cvd_arr <<< "${CUDA_VISIBLE_DEVICES}"
-    NUM_PROCS=${#.__cvd_arr[@]}
+    NUM_PROCS=${#__cvd_arr[@]}
   else
     NUM_PROCS=$(nvidia-smi -L | wc -l | tr -d ' ')
   fi
@@ -25,8 +25,8 @@ ENTRY="main_fusion_mmae.py"
 
 surfix="train.epochs=${EPOCHS} train.batch_size=${BATCH_SIZE} train.data_root=/local/wding/Dataset/coco/images/" # General settings
 
-accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-4 "$surfix"
+accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-4 $surfix 
 
-accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-3 "$surfix"
+accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-3 $surfix
 
-accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-5 "$surfix"
+accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-5 $surfix

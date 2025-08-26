@@ -5,7 +5,7 @@ set -euo pipefail
 if command -v nvidia-smi >/dev/null 2>&1; then
   if [ -n "${CUDA_VISIBLE_DEVICES-}" ]; then
     IFS=',' read -r -a __cvd_arr <<< "${CUDA_VISIBLE_DEVICES}"
-    NUM_PROCS=${#.__cvd_arr[@]}
+    NUM_PROCS=${#__cvd_arr[@]}
   else
     NUM_PROCS=$(nvidia-smi -L | wc -l | tr -d ' ')
   fi
