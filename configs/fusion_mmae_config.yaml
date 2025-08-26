@@ -1,0 +1,38 @@
+model:
+  image_size: 224
+  backbone: vit_tiny_patch16_224
+  proj_dim: 256
+  fusion_method: concat
+
+text:
+  backbone: bert-base-uncased
+  max_len: 16
+
+loss:
+  temperature: 0.07
+  mae_weight: 1.0
+  mlm_weight: 1.0
+  contrastive_weight: 1.0
+
+train:
+  epochs: 10
+  lr: 1.0e-4
+  batch_size: 256
+  weight_decay: 5.0e-2
+  seed: 42
+  save_dir: ""
+  save_interval: 0
+  data_root: /data/SSD/coco/images/
+  num_workers: 8
+  # Early stopping parameters
+  patience: 5
+  min_delta: 1.0e-4
+
+wandb:
+  enabled: true
+  project: multi-fusion-mmae
+  entity: augustoxq
+  name: ""
+  tags: [FusionMMAE]
+  notes: "多模态融合MAE训练"
+  mode: online

@@ -1,0 +1,30 @@
+model:
+  image_size: 224
+  patch_size: 16
+  emb_dim: 192
+  encoder_layer: 12
+  encoder_head: 3
+  decoder_layer: 4
+  decoder_head: 3
+  mask_ratio: 0.75
+  backbone: "vit_tiny_patch16_224"  # e.g., vit_tiny_patch16_224; empty string means use custom lightweight encoder
+
+train:
+  epochs: 20
+  lr: 1.0e-4
+  batch_size: 1024
+  weight_decay: 1.0e-4
+  seed: 42
+  save_dir: checkpoints
+  save_interval: 40
+  data_root: dataset/cifar
+  num_workers: 4
+
+wandb:
+  enabled: true
+  project: multi-mae
+  entity: augustoxq
+  name: ""
+  tags: [MultimodalMAE]
+  notes: "测试多模态MAE"
+  mode: online  # online | offline | disabled

@@ -1,0 +1,28 @@
+# --------- pytorch --------- #
+torch
+timm
+datasets
+torchvision
+transformers
+huggingface_hub
+
+# --------- ML --------- #
+einops
+matplotlib
+scikit-learn
+numpy
+pandas
+seaborn
+ipykernel
+jupyter
+
+# --------- configs ---------#
+hydra-core
+omegaconf
+wandb
+
+# --------- utils ---------#
+tqdm
+Pillow
+
+# --------- others --------- #

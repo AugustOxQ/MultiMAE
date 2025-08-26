@@ -1,0 +1,30 @@
+text:
+  backbone: "bert-base-uncased"  # empty to use lightweight custom encoder/decoder
+  vocab_size: 30522
+  seq_len: 128
+  emb_dim: 256
+  encoder_layer: 6
+  encoder_head: 4
+  decoder_layer: 4
+  decoder_head: 4
+  mask_ratio: 0.15
+
+train:
+  epochs: 6
+  lr: 1.0e-4
+  batch_size: 128
+  weight_decay: 1.0e-4
+  seed: 42
+  save_dir: ""
+  save_interval: 2
+  num_workers: 4
+
+wandb:
+  enabled: true
+  project: multi-mlm
+  entity: augustoxq
+  name: ""
+  tags: [MLM]
+  notes: "测试多模态MLM"
+  mode: online
+
