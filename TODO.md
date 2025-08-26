@@ -5,12 +5,14 @@ Project development tracking and planning.
 ## 🎯 Current Sprint (Week 35 - Aug 26-30, 2025)
 
 ### High Priority
-- [ ] Complete CLIP backbone support
+- [x] Complete CLIP backbone support
 
 ### Medium Priority
 - [ ] Unifying all model supports format
+- [ ] Add Cluster support
 
 ### Low Priority
+- [ ] Add Multi-gpu support
 
 
 ## 📅 This Week's Progress (Aug 19-25)

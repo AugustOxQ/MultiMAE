@@ -12,7 +12,7 @@ MultiMAE 是一个用于多模态自监督学习与检索评测的研究型项�
 ## 目标与特性
 - 统一的训练与评估入口：`main_mae.py`、`main_mlm.py`、`main_mmae.py`、`main_fusion_mmae.py`
 - 数据集适配：内置 COCO 图文数据集的简化读取器与检索评测脚本
-- 可替换的骨干与组件：支持 timm ViT、HF 文本骨干，提供轻量自实现作为回退
+- 可替换的骨干与组件：支持 timm ViT、HF 文本 backbone，提供轻量自实现作为回退
 - 简洁的度量与损失：MAE/MLM/对比学习损失，支持早停与 wandb 日志
 
 ## 代码结构
