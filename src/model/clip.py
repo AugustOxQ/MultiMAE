@@ -2,8 +2,20 @@ import torch
 import numpy as np
 from typing import Optional, Tuple
 
-from einops import rearrange
+from einops import rearrange, repeat
 from transformers import CLIPVisionModel, CLIPTextModel, CLIPTokenizer
+
+
+def take_indexes(sequences: torch.Tensor, indexes: torch.Tensor) -> torch.Tensor:
+    """
+    按照给定索引在第0维上选择元素。
+    sequences: (T, B, C)
+    indexes:   (T, B)
+    返回:      (T, B, C)
+    """
+    return torch.gather(
+        sequences, 0, repeat(indexes, "t b -> t b c", c=sequences.shape[-1])
+    )
 
 
 class CLIPVisionEncoder(torch.nn.Module):
@@ -190,9 +202,7 @@ class CLIPMAEEncoder(torch.nn.Module):
             self.image_size // self.patch_size,
         )
 
-    def forward(
-        self, img: torch.Tensor, return_unmasked_features: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         前向传播，保持与TimmViTEncoder相同的接口
         Args:
@@ -202,17 +212,34 @@ class CLIPMAEEncoder(torch.nn.Module):
             features: (T+1, B, C) 特征向量
             backward_indexes: 兼容性返回，这里返回None
         """
-        if return_unmasked_features:
-            return self.encode_image_clean(img), None
+        # 使用CLIP vision encoder，得到完整序列（含CLS）
+        outputs = self.clip_vision(img)  # last_hidden_state: (B, 1+N, C)
+        full_seq = outputs.last_hidden_state
+        B, TN1, C = full_seq.shape
+        # 分离CLS与patch tokens
+        cls_tok = full_seq[:, :1, :]  # (B, 1, C)
+        patch_tok = full_seq[:, 1:, :]  # (B, N, C)
 
-        # 使用CLIP vision encoder
-        outputs = self.clip_vision(img)
-        features = outputs.last_hidden_state  # (B, T+1, C)
+        # 保序直接mask：随机选择mask位置，但不改变序列顺序，长度保持
+        N = patch_tok.shape[1]
+        num_to_mask = max(1, int(N * self.mask_ratio))
+        device = patch_tok.device
+        mask = torch.zeros((B, N), dtype=torch.bool, device=device)
+        for b in range(B):
+            choice = torch.randperm(N, device=device)[:num_to_mask]
+            mask[b, choice] = True
 
-        # 转换为 (T+1, B, C) 格式
-        features = rearrange(features, "b t c -> t b c")
+        masked_patch_tok = patch_tok.clone()
+        masked_patch_tok[mask] = 0.0
 
-        return features, None
+        # 拼回CLS并转换为 (T+1, B, C)
+        features_btC = torch.cat([cls_tok, masked_patch_tok], dim=1)  # (B, 1+N, C)
+        features = rearrange(features_btC, "b t c -> t b c")
+
+        # 返回mask (B, N, 1)
+        mask_float = mask.unsqueeze(-1).float()
+
+        return features, mask_float
 
     def encode_image_clean(self, images: torch.Tensor) -> torch.Tensor:
         """

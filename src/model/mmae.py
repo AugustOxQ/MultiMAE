@@ -1,8 +1,9 @@
 import torch
 from typing import Optional
 
-from src.model.mae import MAE_ViT, MAE_Encoder
+from src.model.mae import MAE_ViT, MAE_Encoder, TimmViTEncoder
 from src.model.mlm import HFMLMBackbone, MLM_Encoder
+from src.model.clip import CLIPMAEEncoder, CLIPMLMEncoder
 from einops import rearrange
 
 
@@ -160,7 +161,7 @@ class MultiModalMAE(torch.nn.Module):
         return cls
 
 
-class ImagePatchDecoder(torch.nn.Module):
+class ImagePatchDecoder_mlp(torch.nn.Module):
     """
     简易图像补丁解码器：将融合后的序列特征映射为每个图像补丁的重建输出。
     - 输入: fused_tokens (B, L, C)
@@ -194,6 +195,62 @@ class ImagePatchDecoder(torch.nn.Module):
         return patch_pred
 
 
+class ImagePatchDecoder(torch.nn.Module):
+    """
+    基于 Transformer 的图像补丁解码器：
+    - 使用可学习的补丁查询 `num_patches` 作为目标序列，
+      通过 TransformerDecoder 从融合序列 `fused_tokens` 中跨注意力获取信息，
+      输出每个补丁的重建向量。
+
+    输入: fused_tokens (B, L, C)
+    输出: (B, N_patches, patch_out_dim)
+    """
+
+    def __init__(
+        self,
+        fused_dim: int,
+        num_patches: int,
+        patch_out_dim: int,
+        num_layers: int = 4,
+        num_heads: int = 4,
+        dim_feedforward: int | None = None,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()
+        self.num_patches = num_patches
+        self.patch_out_dim = patch_out_dim
+
+        if dim_feedforward is None:
+            dim_feedforward = fused_dim * 4
+
+        # 可学习的补丁查询 (N, C)
+        self.patch_queries = torch.nn.Parameter(torch.randn(num_patches, fused_dim))
+
+        # Transformer 解码器（batch_first）
+        decoder_layer = torch.nn.TransformerDecoderLayer(
+            d_model=fused_dim,
+            nhead=num_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
+        )
+        self.decoder = torch.nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
+
+        # 输出映射到每个补丁的像素重建维度
+        self.to_patch = torch.nn.Linear(fused_dim, patch_out_dim)
+
+    def forward(self, fused_tokens: torch.Tensor) -> torch.Tensor:
+        # fused_tokens: (B, L, C) 作为 memory
+        B = fused_tokens.shape[0]
+        # 目标为可学习补丁查询，扩展 batch 维度: (B, N, C)
+        tgt = self.patch_queries.unsqueeze(0).expand(B, -1, -1)
+        # 解码得到每个补丁的表征: (B, N, C)
+        dec = self.decoder(tgt=tgt, memory=fused_tokens)
+        # 投影到补丁输出维度: (B, N, D)
+        return self.to_patch(dec)
+
+
 class MultiModalFusionMAE(torch.nn.Module):
     """
     Multimodal encoder pair (vision + language) with projection heads for contrastive learning.
@@ -215,7 +272,7 @@ class MultiModalFusionMAE(torch.nn.Module):
         encoder_layer: int = 12,
         encoder_head: int = 3,
         mask_ratio: float = 0.75,
-        backbone_vision: Optional[str] = None,
+        backbone_vision: Optional[str] = "vit_tiny_patch16_224",
         # language params
         text_backbone: Optional[str] = "bert-base-uncased",
         # projection & fusion
@@ -227,13 +284,8 @@ class MultiModalFusionMAE(torch.nn.Module):
         super().__init__()
 
         # 仅使用 encoder 路径
-        self.vision_encoder = MAE_Encoder(
-            image_size=image_size,
-            patch_size=patch_size,
-            emb_dim=emb_dim,
-            num_layer=encoder_layer,
-            num_head=encoder_head,
-            mask_ratio=mask_ratio,
+        self.vision_encoder = TimmViTEncoder(
+            model_name=backbone_vision, mask_ratio=0.15
         )
 
         if text_backbone:
@@ -259,6 +311,8 @@ class MultiModalFusionMAE(torch.nn.Module):
             fused_dim=proj_dim,
             num_patches=num_patches,
             patch_out_dim=image_patch_out_dim,
+            num_layers=encoder_layer,
+            num_heads=encoder_head,
         )
 
         # 语言侧解码器占位
@@ -282,7 +336,7 @@ class MultiModalFusionMAE(torch.nn.Module):
     def encode_image_tokens(self, images: torch.Tensor) -> torch.Tensor:
         """返回包含 [CLS] 的图像 token: (B, N+1, C_proj)"""
         # 这里的 vision_encoder 是 MAE_Encoder，无 encode_image_clean，直接走 forward
-        features, _ = self.vision_encoder(images)  # (T+1, B, C)
+        features = self.vision_encoder.encode_image_clean(images)  # (T+1, B, C)
         img_tokens = rearrange(features, "t b c -> b t c")  # (B, T+1, C)
         img_tokens = self.vision_proj(img_tokens)  # (B, N+1, C_proj)
         return img_tokens
@@ -299,6 +353,224 @@ class MultiModalFusionMAE(torch.nn.Module):
         else:
             features, _ = self.text_encoder(token_ids)  # (T+1, B, C)
             txt_tokens = rearrange(features, "t b c -> b t c")  # (B, T+1, C)
+        txt_tokens = self.text_proj(txt_tokens)  # (B, T+1, C_proj)
+        return txt_tokens
+
+    def encode_text_tokens_cls(self, token_ids: torch.Tensor) -> torch.Tensor:
+        """返回文本 CLS token: (B, C_proj)"""
+        tokens = self.encode_text_tokens(token_ids)  # (B, T+1, C_proj)
+        return tokens[:, 0, :]  # (B, C_proj)
+
+    # ---------- Fusion ----------
+    def fuse_features(
+        self,
+        img_tokens: torch.Tensor,
+        txt_tokens: torch.Tensor,
+        method: Optional[str] = None,
+    ) -> torch.Tensor:
+        """
+        融合两模态特征：当前默认 concat 沿序列维拼接；
+        后续可扩展为 cross-attention、门控相加、FiLM、Transformer 融合等。
+        """
+        if method is None:
+            method = self.fusion_method
+        if method == "concat":
+            return torch.cat([img_tokens, txt_tokens], dim=1)
+        raise NotImplementedError(f"Fusion method '{method}' is not implemented")
+
+    # ---------- Decoding ----------
+    def reconstruct_image(self, fused_tokens: torch.Tensor) -> torch.Tensor:
+        """从融合序列重建图像补丁输出: (B, N_patches, D_out)"""
+        return self.image_decoder(fused_tokens)
+
+    def get_original_image_patches(self, images: torch.Tensor) -> torch.Tensor:
+        """
+        获取原始图像的补丁表示，用于计算重建损失
+        返回: (B, N_patches, patch_dim) 其中 patch_dim = patch_size * patch_size * 3
+        """
+        B, C, H, W = images.shape
+        patch_size = 16  # 假设与模型初始化时的 patch_size 一致
+
+        # 将图像分割成 patches
+        patches = images.unfold(2, patch_size, patch_size).unfold(
+            3, patch_size, patch_size
+        )
+        patches = patches.contiguous().view(B, C, -1, patch_size, patch_size)
+        patches = patches.permute(0, 2, 1, 3, 4).contiguous()
+        patches = patches.view(
+            B, -1, C * patch_size * patch_size
+        )  # (B, N_patches, patch_dim)
+
+        return patches
+
+    def calculate_mae_reconstruction_loss(
+        self, images: torch.Tensor, fused_tokens: torch.Tensor, mask_ratio: float = 0.75
+    ) -> torch.Tensor:
+        """
+        计算正确的 MAE 重建损失
+        - 获取原始图像补丁
+        - 生成 mask 模式（与 encoder 一致）
+        - 计算被 mask 位置的 MSE 损失
+        """
+        B, N_patches, patch_dim = (
+            fused_tokens.shape[0],
+            self.image_decoder.num_patches,
+            self.image_decoder.patch_out_dim,
+        )
+
+        # 获取原始图像补丁
+        original_patches = self.get_original_image_patches(
+            images
+        )  # (B, N_patches, patch_dim)
+
+        # 生成 mask（与 encoder 的 mask 策略一致）
+        num_masked = int(N_patches * mask_ratio)
+        mask_indices = torch.randperm(N_patches, device=fused_tokens.device)[
+            :num_masked
+        ]
+
+        # 重建的补丁
+        reconstructed_patches = self.reconstruct_image(
+            fused_tokens
+        )  # (B, N_patches, patch_dim)
+
+        # 只计算被 mask 位置的损失
+        masked_reconstructed = reconstructed_patches[
+            :, mask_indices, :
+        ]  # (B, num_masked, patch_dim)
+        masked_original = original_patches[
+            :, mask_indices, :
+        ]  # (B, num_masked, patch_dim)
+
+        mae_loss = torch.nn.functional.mse_loss(masked_reconstructed, masked_original)
+        return mae_loss
+
+    def reconstruct_text(
+        self, fused_tokens: torch.Tensor, token_ids: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        语言侧重建接口：默认使用MLM解码头（方案1）。
+        返回 (logits, mask)
+        """
+        if self.language_decoder_head is None:
+            raise NotImplementedError(
+                "Language reconstruction head is not implemented yet"
+            )
+        return self.language_decoder_head(fused_tokens, token_ids)
+
+    # ---------- Forward ----------
+    def forward(
+        self,
+        images: torch.Tensor,
+        token_ids: torch.Tensor,
+    ) -> dict:
+        """
+        返回：
+        - fused_tokens: 融合后的序列 (B, L_img+L_txt, C)
+        - image_patches: 图像补丁重建输出 (B, N_patches, D_out)
+        - text_outputs: 若接入语言解码器，则返回其输出
+        """
+        img_tokens = self.encode_image_tokens(images)
+        txt_tokens = self.encode_text_tokens(token_ids)
+        fused_tokens = self.fuse_features(img_tokens, txt_tokens)
+
+        out: dict = {
+            "fused_tokens": fused_tokens,
+            "image_patches": self.reconstruct_image(fused_tokens),
+        }
+        if self.language_decoder_head is not None:
+            out["text_outputs"] = self.reconstruct_text(fused_tokens, token_ids)
+        return out
+
+
+class MultiModalFusionMAE_CLIP(torch.nn.Module):
+    """
+    Multimodal encoder pair (vision + language) with projection heads for contrastive learning.
+    不同于 MultiModalMAE，本模型在两模态编码后进行融合（先用 concat），再用融合特征进行重建。
+
+    当前实现：
+    - 仅创建 MAE 与 MLM 的 encoder，并用投影头对齐维度
+    - 融合方法通过接口保留，默认 concat，后续可替换为 cross-attn/transformer 等
+    - 提供一个基于Transformer的图像补丁解码器用于重建
+    - 语言侧解码器使用TransformerDecoder，并使用可学习的目标查询与位置编码
+    """
+
+    def __init__(
+        self,
+        # vision params
+        image_size: int = 224,
+        patch_size: int = 16,
+        emb_dim: int = 768,
+        decoder_layer: int = 4,
+        decoder_head: int = 8,
+        mask_ratio: float = 0.75,
+        backbone_vision: str = "openai/clip-vit-base-patch32",
+        # language params
+        text_backbone: str = "openai/clip-vit-base-patch32",
+        # projection & fusion
+        proj_dim: int = 256,
+        fusion_method: str = "concat",
+        # image reconstruction params
+        image_patch_out_dim: Optional[int] = None,  # 默认 p*p*3
+    ) -> None:
+        super().__init__()
+
+        # 仅使用 encoder 路径
+        self.vision_encoder = CLIPMAEEncoder(
+            model_name=backbone_vision, mask_ratio=mask_ratio
+        )
+
+        self.text_encoder = CLIPMLMEncoder(model_name=text_backbone, mask_ratio=0.15)
+        text_out_dim = self.text_encoder.emb_dim
+
+        # 投影到同一维度，便于融合
+        vision_out_dim = self.vision_encoder.emb_dim
+        self.vision_proj = ProjectionHead(vision_out_dim, proj_dim)
+        self.text_proj = ProjectionHead(text_out_dim, proj_dim)
+
+        # 融合方式
+        self.fusion_method = fusion_method
+
+        # 图像补丁解码器
+        num_patches = (image_size // patch_size) * (image_size // patch_size)
+        if image_patch_out_dim is None:
+            image_patch_out_dim = patch_size * patch_size * 3
+        self.image_decoder = ImagePatchDecoder(
+            fused_dim=proj_dim,
+            num_patches=num_patches,
+            patch_out_dim=image_patch_out_dim,
+        )
+
+        # 语言侧解码器占位
+        self.language_decoder_head: Optional[torch.nn.Module] = None
+        # 若使用HF backbone，可获取词表大小与pad id，直接构建方案1解码器
+        vocab_size = self.text_encoder.vocab_size
+        pad_id = self.text_encoder.pad_token_id
+        self.language_decoder_head = TextMLMDecoderHead(
+            fused_dim=proj_dim,
+            vocab_size=vocab_size,
+            max_seq_len=self.text_encoder.max_seq_len,
+            pad_token_id=pad_id,
+            num_layers=decoder_layer,
+            num_heads=decoder_head,
+        )
+
+    # ---------- Encoding ----------
+    def encode_image_tokens(self, images: torch.Tensor) -> torch.Tensor:
+        """返回包含 [CLS] 的图像 token: (B, N+1, C_proj)"""
+        # 这里的 vision_encoder 是 MAE_Encoder，无 encode_image_clean，直接走 forward
+        img_tokens = self.vision_encoder.encode_image_clean(images)  # (B, T+1, C)
+        img_tokens = self.vision_proj(img_tokens)  # (B, T+1, C_proj)
+        return img_tokens
+
+    def encode_image_tokens_cls(self, images: torch.Tensor) -> torch.Tensor:
+        """返回图像 CLS token: (B, C_proj)"""
+        tokens = self.encode_image_tokens(images)  # (B, N+1, C_proj)
+        return tokens[:, 0, :]  # (B, C_proj)
+
+    def encode_text_tokens(self, token_ids: torch.Tensor) -> torch.Tensor:
+        """返回包含 [CLS] 的文本 token: (B, T+1, C_proj)"""
+        txt_tokens = self.text_encoder.encode_text_clean(token_ids)  # (B, T+1, C)
         txt_tokens = self.text_proj(txt_tokens)  # (B, T+1, C_proj)
         return txt_tokens
 
@@ -448,33 +720,58 @@ class TextMLMDecoderHead(torch.nn.Module):
         vocab_size: int,
         max_seq_len: int = 256,
         pad_token_id: int = 0,
-        hidden_dim: int = 512,
+        num_layers: int = 4,
+        num_heads: int = 4,
+        dim_feedforward: int | None = None,
+        dropout: float = 0.1,
     ) -> None:
         super().__init__()
         self.vocab_size = vocab_size
         self.pad_token_id = pad_token_id
         self.max_seq_len = max_seq_len
 
+        if dim_feedforward is None:
+            dim_feedforward = fused_dim * 4
+
+        # 可学习的目标查询与位置编码
+        self.token_queries = torch.nn.Parameter(torch.randn(max_seq_len, fused_dim))
         self.pos_embed = torch.nn.Parameter(torch.zeros(max_seq_len, fused_dim))
-        self.mlp = torch.nn.Sequential(
-            torch.nn.Linear(fused_dim, hidden_dim),
-            torch.nn.GELU(),
-            torch.nn.Linear(hidden_dim, vocab_size),
+
+        # Transformer 解码器，将 token queries 作为 tgt，从融合序列中做 cross-attn
+        decoder_layer = torch.nn.TransformerDecoderLayer(
+            d_model=fused_dim,
+            nhead=num_heads,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True,
+            activation="gelu",
         )
+        self.decoder = torch.nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
+
+        # 词表投影
+        self.to_vocab = torch.nn.Linear(fused_dim, vocab_size)
 
     def forward(self, fused_tokens: torch.Tensor, token_ids: torch.Tensor):
-        # fused_tokens: (B, L, C)
+        # fused_tokens: (B, L, C) 作为 memory
         # token_ids: (B, T)
         B, T = token_ids.shape
-        C = fused_tokens.shape[-1]
-        # 全局特征
-        global_feat = fused_tokens.mean(dim=1)  # (B, C)
-        # 取前T个位置编码
-        pos = self.pos_embed[:T]  # (T, C)
-        pos = pos.unsqueeze(0).expand(B, -1, -1)  # (B, T, C)
-        x = global_feat.unsqueeze(1).expand(-1, T, -1) + pos  # (B, T, C)
-        logits = self.mlp(x)  # (B, T, V)
-        mask = (token_ids != self.pad_token_id).float().unsqueeze(-1)  # (B, T, 1)
+
+        # 构造目标序列 queries + 位置编码
+        tgt = self.token_queries[:T] + self.pos_embed[:T]  # (T, C)
+        tgt = tgt.unsqueeze(0).expand(B, -1, -1)  # (B, T, C)
+
+        # padding mask: True 表示需要被mask（不参与注意力）
+        tgt_key_padding_mask = token_ids.eq(self.pad_token_id)  # (B, T)
+
+        # 解码
+        dec = self.decoder(
+            tgt=tgt,
+            memory=fused_tokens,
+            tgt_key_padding_mask=tgt_key_padding_mask,
+        )  # (B, T, C)
+
+        logits = self.to_vocab(dec)  # (B, T, V)
+        mask = (~tgt_key_padding_mask).float().unsqueeze(-1)  # (B, T, 1)
         return logits, mask
 
 

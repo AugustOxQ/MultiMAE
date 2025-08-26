@@ -1,12 +1,12 @@
 model:
   image_size: 224
-  backbone: vit_tiny_patch16_224
+  backbone: openai/clip-vit-base-patch32
   proj_dim: 256
   fusion_method: concat
 
 text:
-  backbone: bert-base-uncased
-  max_len: 16
+  backbone: openai/clip-vit-base-patch32
+  max_len: 32
 
 loss:
   temperature: 0.07

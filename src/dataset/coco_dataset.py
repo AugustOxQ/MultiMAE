@@ -1,5 +1,6 @@
 import json
 import os
+import pathlib
 
 import torch
 from datasets import config
@@ -30,15 +31,18 @@ class COCOImageTextDataset(Dataset):
         self.split = split
         self.image_size = image_size
         self.max_len = max_len
+        self.annotation_file_prefix = pathlib.Path(root).parent / "annotations"
         if split == "train":
-            self.annotation_file = "/data/SSD/coco/annotations/coco_karpathy_train.json"
+            self.annotation_file = (
+                self.annotation_file_prefix / "coco_karpathy_train.json"
+            )
         elif split == "val":
             self.annotation_file = (
-                "/data/SSD/coco/annotations/coco_karpathy_val_one_caption.json"
+                self.annotation_file_prefix / "coco_karpathy_val_one_caption.json"
             )
         elif split == "test":
             self.annotation_file = (
-                "/data/SSD/coco/annotations/coco_karpathy_test_one_caption.json"
+                self.annotation_file_prefix / "coco_karpathy_test_one_caption.json"
             )
 
         with open(self.annotation_file, "r") as f:
@@ -99,6 +103,7 @@ class MSCOCOTestDataset(Dataset):
         self.split = split
         self.image_size = image_size
         self.max_len = max_len
+        self.annotation_file_prefix = pathlib.Path(root).parent / "annotations"
 
         # Setup transforms
         self.transform = Compose(
@@ -114,9 +119,13 @@ class MSCOCOTestDataset(Dataset):
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         if split == "test":
-            self.annotation_file = "/data/SSD/coco/annotations/coco_karpathy_test.json"
+            self.annotation_file = (
+                self.annotation_file_prefix / "coco_karpathy_test.json"
+            )
         else:
-            self.annotation_file = "/data/SSD/coco/annotations/coco_karpathy_val.json"
+            self.annotation_file = (
+                self.annotation_file_prefix / "coco_karpathy_val.json"
+            )
 
         with open(self.annotation_file, "r") as f:
             self.data = json.load(f)

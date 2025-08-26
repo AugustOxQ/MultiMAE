@@ -11,6 +11,7 @@ from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
 from src.model.mmae import MultiModalFusionMAE
+from src.model.mmae import MultiModalFusionMAE_CLIP
 from src.metrics.contrastive import clip_contrastive_loss
 from src.metrics.losses import calculate_mae_loss, calculate_mlm_loss
 from src.utils import setup_seed, count_parameters
@@ -20,7 +21,7 @@ from src.hook.eval_fusionmmae import evalrank
 
 def train_fusionmmae(
     # ===== 训练基础参数 =====
-    epochs: int = 20,
+    epochs: int = 10,
     lr: float = 1e-4,
     batch_size: int = 256,
     weight_decay: float = 1e-4,
@@ -28,12 +29,12 @@ def train_fusionmmae(
     # ===== 数据相关参数 =====
     data_root: str = "data",
     image_size: int = 224,
-    num_workers: int = 4,
+    num_workers: int = 8,
     # ===== 模型架构参数 =====
     # Vision
-    backbone_vision: Optional[str] = "vit_tiny_patch16_224",
+    backbone_vision: str = "openai/clip-vit-base-patch32",
     # Language
-    text_backbone: Optional[str] = "bert-base-uncased",
+    text_backbone: str = "openai/clip-vit-base-patch32",
     text_max_len: int = 16,
     proj_dim: int = 256,
     fusion_method: str = "concat",
@@ -94,12 +95,12 @@ def train_fusionmmae(
     )
 
     # model
-    fusion_model = MultiModalFusionMAE(
+    fusion_model = MultiModalFusionMAE_CLIP(
         image_size=image_size,
         patch_size=16,
-        emb_dim=192,
-        encoder_layer=12,
-        encoder_head=3,
+        emb_dim=768,
+        decoder_layer=4,
+        decoder_head=8,
         mask_ratio=0.75,
         backbone_vision=backbone_vision,
         text_backbone=text_backbone,
