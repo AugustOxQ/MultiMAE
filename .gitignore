@@ -154,7 +154,7 @@ dmypy.json
 *.json
 
 # Folder
-dataset/*
+data/*
 wandb/
 other/
 out/
