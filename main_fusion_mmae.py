@@ -2,6 +2,8 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import wandb
+from typing import Any, Dict, cast
+from accelerate import Accelerator
 
 from src.hook import train_fusionmmae
 from src.utils import SimpleWandbLogger, setup_seed
@@ -12,13 +14,15 @@ def main(cfg: DictConfig) -> None:
     print("Loaded config:\n" + OmegaConf.to_yaml(cfg))
     setup_seed(cfg.train.seed)
 
+    accelerator = Accelerator()
+
     wandb_logger = None
-    if cfg.get("wandb") and cfg.wandb.enabled:
+    if accelerator.is_main_process and cfg.get("wandb") and cfg.wandb.enabled:
         if getattr(cfg.wandb, "mode", "") == "disabled":
             os.environ["WANDB_MODE"] = "disabled"
         elif getattr(cfg.wandb, "mode", "") == "offline":
             os.environ["WANDB_MODE"] = "offline"
-        run_config = OmegaConf.to_container(cfg, resolve=True)
+        run_config = cast(Dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
         wandb.init(
             project=getattr(cfg.wandb, "project", None),
             entity=getattr(cfg.wandb, "entity", None),
@@ -48,6 +52,7 @@ def main(cfg: DictConfig) -> None:
         epochs=cfg.train.epochs,
         lr=cfg.train.lr,
         batch_size=cfg.train.batch_size,
+        eval_batch_size=cfg.train.eval_batch_size,
         weight_decay=cfg.train.weight_decay,
         seed=cfg.train.seed,
         image_size=cfg.model.image_size,
@@ -68,6 +73,7 @@ def main(cfg: DictConfig) -> None:
         # Early stopping parameters
         patience=cfg.train.patience,
         min_delta=cfg.train.min_delta,
+        accelerator=accelerator,
     )
 
     if wandb_logger is not None:
@@ -109,7 +115,7 @@ def main(cfg: DictConfig) -> None:
             }
         )
 
-    if cfg.get("wandb") and cfg.wandb.enabled:
+    if accelerator.is_main_process and cfg.get("wandb") and cfg.wandb.enabled:
         wandb.finish()
 
 

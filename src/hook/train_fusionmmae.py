@@ -17,6 +17,7 @@ from src.metrics.losses import calculate_mae_loss, calculate_mlm_loss
 from src.utils import setup_seed, count_parameters
 from src.dataset import COCOImageTextDataset, MSCOCOTestDataset
 from src.hook.eval_fusionmmae import evalrank
+from accelerate import Accelerator
 
 
 def train_fusionmmae(
@@ -24,6 +25,7 @@ def train_fusionmmae(
     epochs: int = 10,
     lr: float = 1e-4,
     batch_size: int = 256,
+    eval_batch_size: int = 256,
     weight_decay: float = 1e-4,
     seed: int = 42,
     # ===== 数据相关参数 =====
@@ -50,12 +52,14 @@ def train_fusionmmae(
     # ===== Early Stopping 参数 =====
     patience: int = 10,
     min_delta: float = 1e-4,
+    accelerator: Optional[Accelerator] = None,
 ):
     if save_dir:
         os.makedirs(save_dir, exist_ok=True)
 
     setup_seed(seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    accelerator = accelerator or Accelerator()
+    device = accelerator.device
 
     # data
     train_set = COCOImageTextDataset(
@@ -77,7 +81,7 @@ def train_fusionmmae(
         train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers
     )
     val_loader = DataLoader(
-        val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers
+        val_set, batch_size=eval_batch_size, shuffle=False, num_workers=num_workers
     )
 
     retrieval_val_set = MSCOCOTestDataset(
@@ -89,7 +93,7 @@ def train_fusionmmae(
     )
     retrieval_val_loader = DataLoader(
         retrieval_val_set,
-        batch_size=batch_size,
+        batch_size=eval_batch_size,
         shuffle=False,
         num_workers=num_workers,
     )
@@ -108,7 +112,9 @@ def train_fusionmmae(
         fusion_method=fusion_method,
     ).to(device)
 
-    print("MultiModalFusionMAE Model Parameters:", count_parameters(fusion_model))
+    accelerator.print(
+        "MultiModalFusionMAE Model Parameters:", count_parameters(fusion_model)
+    )
 
     # Optimizer
     optimizer = torch.optim.AdamW(
@@ -118,6 +124,13 @@ def train_fusionmmae(
         (epoch + 1) / (10 + 1e-8), 0.5 * (math.cos(epoch / epochs * math.pi) + 1)
     )
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_func)
+
+    # Prepare for distributed/mixed-precision
+    fusion_model, optimizer, train_loader, val_loader, retrieval_val_loader = (
+        accelerator.prepare(
+            fusion_model, optimizer, train_loader, val_loader, retrieval_val_loader
+        )
+    )
 
     train_losses, val_losses = [], []
     train_mae_losses, train_mlm_losses, train_contrastive_losses = [], [], []
@@ -139,6 +152,7 @@ def train_fusionmmae(
             enumerate(train_loader),
             total=len(train_loader),
             desc=f"Epoch {epoch+1}/{epochs}",
+            disable=not accelerator.is_local_main_process,
         )
         for _, (images, token_ids) in pbar:
             images = images.to(device)
@@ -176,7 +190,7 @@ def train_fusionmmae(
                 + contrastive_weight * contrastive_loss
             )
 
-            total_loss.backward()
+            accelerator.backward(total_loss)
             optimizer.step()
 
             epoch_losses.append(total_loss.item())
@@ -194,7 +208,7 @@ def train_fusionmmae(
             )
 
             global_step += 1
-            if logger is not None:
+            if accelerator.is_main_process and logger is not None:
                 logger.log_metrics(
                     {
                         "train/step_total_loss": float(total_loss.item()),
@@ -231,6 +245,7 @@ def train_fusionmmae(
                 enumerate(val_loader),
                 total=len(val_loader),
                 desc=f"Validation {epoch+1}/{epochs}",
+                disable=not accelerator.is_local_main_process,
             )
             for _, (images, token_ids) in vpbar:
                 images = images.to(device)
@@ -266,7 +281,7 @@ def train_fusionmmae(
                 val_epoch_mlm_losses.append(mlm_loss.item())
                 val_epoch_contrastive_losses.append(contrastive_loss.item())
 
-                if logger is not None:
+                if accelerator.is_main_process and logger is not None:
                     logger.log_metrics(
                         {
                             "val/step_total_loss": float(val_total_loss.item()),
@@ -291,12 +306,14 @@ def train_fusionmmae(
         val_mlm_losses.append(avg_val_mlm_loss)
         val_contrastive_losses.append(avg_val_contrastive_loss)
 
-        print("\n=== 开始额外评估val set retrieval测试 ===")
+        accelerator.print("\n=== 开始额外评估val set retrieval测试 ===")
 
-        retrieval_metrics = evalrank(fusion_model, retrieval_val_loader)
-        print(f"Retrieval Val Metrics: {retrieval_metrics}")
+        retrieval_metrics = evalrank(
+            fusion_model, retrieval_val_loader, accelerator=accelerator
+        )
+        accelerator.print(f"Retrieval Val Metrics: {retrieval_metrics}")
 
-        if logger is not None:
+        if accelerator.is_main_process and logger is not None:
             for key, value in retrieval_metrics.items():
                 logger.log_metrics(
                     {
@@ -310,24 +327,28 @@ def train_fusionmmae(
             best_val_loss = avg_val_loss
             patience_counter = 0
             best_model_state = fusion_model.state_dict().copy()
-            print(f"Epoch {epoch+1}: 新的最佳验证损失: {best_val_loss:.4f}")
+            accelerator.print(f"Epoch {epoch+1}: 新的最佳验证损失: {best_val_loss:.4f}")
         else:
             patience_counter += 1
-            print(
+            accelerator.print(
                 f"Epoch {epoch+1}: 验证损失未改善，patience: {patience_counter}/{patience}"
             )
 
         # Check if we should stop early
         if patience_counter >= patience:
-            print(f"Early stopping triggered after {epoch+1} epochs!")
+            accelerator.print(f"Early stopping triggered after {epoch+1} epochs!")
             break
 
-        print(
+        accelerator.print(
             f"Epoch {epoch+1}/{epochs} - Train loss: {avg_train_loss:.4f}, Val loss: {avg_val_loss:.4f}"
         )
         lr_scheduler.step()
 
-        if save_dir and (epoch + 1) % save_interval == 0:
+        if (
+            accelerator.is_main_process
+            and save_dir
+            and (epoch + 1) % save_interval == 0
+        ):
             save_path = os.path.join(save_dir, f"fusion_mmae_epoch_{epoch+1}.pth")
             torch.save(
                 {
@@ -337,10 +358,10 @@ def train_fusionmmae(
                 },
                 save_path,
             )
-            print(f"Model checkpoint saved at: {save_path}")
+            accelerator.print(f"Model checkpoint saved at: {save_path}")
 
     # Test set evaluation
-    print("\n=== 开始测试集评估 ===")
+    accelerator.print("\n=== 开始测试集评估 ===")
     test_set = COCOImageTextDataset(
         root=data_root,
         split="test",
@@ -349,8 +370,11 @@ def train_fusionmmae(
         max_len=text_max_len,
     )
     test_loader = DataLoader(
-        test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers
+        test_set, batch_size=eval_batch_size, shuffle=False, num_workers=num_workers
     )
+
+    # prepare test loader
+    (test_loader,) = accelerator.prepare(test_loader)
 
     fusion_model.eval()
     test_losses = []
@@ -359,7 +383,12 @@ def train_fusionmmae(
     test_contrastive_losses = []
 
     with torch.no_grad():
-        test_pbar = tqdm(enumerate(test_loader), total=len(test_loader), desc="Testing")
+        test_pbar = tqdm(
+            enumerate(test_loader),
+            total=len(test_loader),
+            desc="Testing",
+            disable=not accelerator.is_local_main_process,
+        )
         for _, (images, token_ids) in test_pbar:
             images = images.to(device)
             token_ids = token_ids.to(device)
@@ -404,7 +433,7 @@ def train_fusionmmae(
                 }
             )
 
-            if logger is not None:
+            if accelerator.is_main_process and logger is not None:
                 logger.log_metrics(
                     {
                         "test/step_total_loss": float(test_total_loss.item()),
@@ -423,13 +452,13 @@ def train_fusionmmae(
         1, len(test_contrastive_losses)
     )
 
-    print(f"\n=== 测试集结果 ===")
-    print(f"Test Total Loss: {avg_test_loss:.4f}")
-    print(f"Test MAE Loss: {avg_test_mae_loss:.4f}")
-    print(f"Test MLM Loss: {avg_test_mlm_loss:.4f}")
-    print(f"Test Contrastive Loss: {avg_test_contrastive_loss:.4f}")
+    accelerator.print(f"\n=== 测试集结果 ===")
+    accelerator.print(f"Test Total Loss: {avg_test_loss:.4f}")
+    accelerator.print(f"Test MAE Loss: {avg_test_mae_loss:.4f}")
+    accelerator.print(f"Test MLM Loss: {avg_test_mlm_loss:.4f}")
+    accelerator.print(f"Test Contrastive Loss: {avg_test_contrastive_loss:.4f}")
 
-    print("\n=== 开始额外评估retrieval测试 ===")
+    accelerator.print("\n=== 开始额外评估retrieval测试 ===")
     retrieval_test_set = MSCOCOTestDataset(
         root=data_root,
         split="test",
@@ -439,15 +468,17 @@ def train_fusionmmae(
     )
     retrieval_test_loader = DataLoader(
         retrieval_test_set,
-        batch_size=batch_size,
+        batch_size=eval_batch_size,
         shuffle=False,
         num_workers=num_workers,
     )
 
-    retrieval_metrics = evalrank(fusion_model, retrieval_test_loader)
-    print(f"Retrieval Test Metrics: {retrieval_metrics}")
+    retrieval_metrics = evalrank(
+        fusion_model, retrieval_test_loader, accelerator=accelerator
+    )
+    accelerator.print(f"Retrieval Test Metrics: {retrieval_metrics}")
 
-    if logger is not None:
+    if accelerator.is_main_process and logger is not None:
         for key, value in retrieval_metrics.items():
             logger.log_metrics(
                 {

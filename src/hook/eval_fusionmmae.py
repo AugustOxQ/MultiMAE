@@ -15,15 +15,13 @@ from tqdm import tqdm
 import numpy as np
 from PIL import Image
 import random
+from typing import Optional
+from accelerate import Accelerator
 
 seed = 42
 np.random.seed(seed)
 torch.manual_seed(seed)
 random.seed(seed)
-
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
 
 
 class IMPDataset_test(Dataset):
@@ -117,11 +115,14 @@ def calculate_metrics(inds, mappings, captions_per_image):
     return (meanR, medR, mean_ap)
 
 
-def encode_data(model, data_loader):
+def encode_data(model, data_loader, accelerator: Optional[Accelerator] = None):
     """Encode all images and captions loadable by `data_loader`"""
     # switch to evaluate mode
     model.eval()
-    print("Evaluating...")
+    if accelerator:
+        accelerator.print("Evaluating...")
+    else:
+        print("Evaluating...")
 
     # Lists to keep all the embeddings
     img_embs = []
@@ -136,9 +137,17 @@ def encode_data(model, data_loader):
     text_index = 0
     image_index = 0
 
+    device = next(model.parameters()).device
     with torch.no_grad():
 
-        for i, (images, captions) in enumerate(tqdm(data_loader)):
+        for i, (images, captions) in enumerate(
+            tqdm(
+                data_loader,
+                disable=(
+                    accelerator is not None and not accelerator.is_local_main_process
+                ),
+            )
+        ):
             images = images.to(device)
             captions = captions.to(device)
             batch_size, captions_per_image, _ = captions.shape
@@ -164,30 +173,44 @@ def encode_data(model, data_loader):
     text_to_image_map = torch.LongTensor(text_to_image_map).to(device)
     image_to_text_map = torch.LongTensor(image_to_text_map).to(device)
 
+    # gather across processes for global metrics
+    if accelerator is not None:
+        image_embeddings = accelerator.gather_for_metrics(image_embeddings)
+        text_embeddings = accelerator.gather_for_metrics(text_embeddings)
+        text_to_image_map = accelerator.gather_for_metrics(text_to_image_map)
+        image_to_text_map = accelerator.gather_for_metrics(image_to_text_map)
+
     image_embeddings /= image_embeddings.norm(dim=-1, keepdim=True)
     text_embeddings /= text_embeddings.norm(dim=-1, keepdim=True)
 
     return image_embeddings, text_embeddings, text_to_image_map, image_to_text_map
 
 
-def evalrank(model, data_loader, npts=None):
+def evalrank(model, data_loader, npts=None, accelerator: Optional[Accelerator] = None):
     # Extract Embeddings
     image_embeddings, text_embeddings, text_to_image_map, image_to_text_map = (
-        encode_data(model, data_loader)
+        encode_data(model, data_loader, accelerator=accelerator)
     )
-    print(image_embeddings.shape, text_embeddings.shape)
-    print(text_to_image_map.shape, image_to_text_map.shape)
+    if accelerator:
+        accelerator.print(image_embeddings.shape, text_embeddings.shape)
+        accelerator.print(text_to_image_map.shape, image_to_text_map.shape)
+    else:
+        print(image_embeddings.shape, text_embeddings.shape)
+        print(text_to_image_map.shape, image_to_text_map.shape)
 
     num_text = text_embeddings.shape[0]
     num_im = image_embeddings.shape[0]
     captions_per_image = image_to_text_map.shape[1]
     k_vals = [1, 5, 10, 50, 100]
-    print(
-        f"Number of images: {num_im}, Number of texts: {num_text}, Captions per image: {captions_per_image}"
-    )
+    msg = f"Number of images: {num_im}, Number of texts: {num_text}, Captions per image: {captions_per_image}"
+    accelerator.print(msg) if accelerator else print(msg)
 
     # text-to-image recall
-    print("Text-to-image recall...")
+    (
+        accelerator.print("Text-to-image recall...")
+        if accelerator
+        else print("Text-to-image recall...")
+    )
 
     dist_matrix = (
         text_embeddings @ image_embeddings.T
@@ -199,8 +222,8 @@ def evalrank(model, data_loader, npts=None):
 
     # Sort in descending order; first is the biggest logit
     inds = torch.argsort(dist_matrix, dim=1, descending=True)
-    inds = inds.to(device)
-    print(inds.shape)
+    inds = inds.to(image_embeddings.device)
+    accelerator.print(inds.shape) if accelerator else print(inds.shape)
 
     text_to_image_recall = []
 
@@ -217,13 +240,17 @@ def evalrank(model, data_loader, npts=None):
     meanR_t2i, medR_t2i, mAP_t2i = calculate_metrics(inds, text_to_image_map, 1)
 
     # image-to-text recall
-    print("Image-to-text recall...")
+    (
+        accelerator.print("Image-to-text recall...")
+        if accelerator
+        else print("Image-to-text recall...")
+    )
     dist_matrix = dist_matrix.T  # dist_matrix[i] gives logits for the ith image
 
     # Sort in descending order; first is the biggest logit
     inds = torch.argsort(dist_matrix, dim=1, descending=True)
-    inds = inds.to(device)
-    print(inds.shape)
+    inds = inds.to(text_embeddings.device)
+    accelerator.print(inds.shape) if accelerator else print(inds.shape)
 
     image_to_text_recall = []
 
@@ -246,7 +273,7 @@ def evalrank(model, data_loader, npts=None):
 
     meanR_i2t, medR_i2t, mAP_i2t = calculate_metrics(inds, image_to_text_map, 5)
 
-    print("Done.")
+    accelerator.print("Done.") if accelerator else print("Done.")
     metrics = {
         "i2t_R1": round(image_to_text_recall[0], 2),
         "i2t_R5": round(image_to_text_recall[1], 2),
@@ -265,7 +292,11 @@ def evalrank(model, data_loader, npts=None):
         "r_sum": round(sum(text_to_image_recall) + sum(image_to_text_recall), 2),  # 100
     }
 
-    for key, value in metrics.items():
-        print(f"{key}: {value}")
+    if accelerator:
+        for key, value in metrics.items():
+            accelerator.print(f"{key}: {value}")
+    else:
+        for key, value in metrics.items():
+            print(f"{key}: {value}")
 
     return metrics

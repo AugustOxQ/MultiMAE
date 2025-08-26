@@ -5,6 +5,7 @@ datasets
 torchvision
 transformers
 huggingface_hub
+accelerate
 
 # --------- ML --------- #
 einops

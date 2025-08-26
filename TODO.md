@@ -9,7 +9,8 @@ Project development tracking and planning.
 
 ### Medium Priority
 - [ ] Unifying all model supports format
-- [ ] Add Cluster support
+- [ ] Now main_fusion_mmae_clip is the focused main file, after all basic changes are made, also apply changes to other main files.
+- [ ] Add Cluster support (main_fusion_mmae.py)
 
 ### Low Priority
 - [ ] Add Multi-gpu support
@@ -18,11 +19,12 @@ Project development tracking and planning.
 ## 📅 This Week's Progress (Aug 19-25)
 
 ### ✅ Completed
+- [x] Add CLIP support (Huggingface format)
 
 ### ⏸️ In Progress
-- [ ] Add CLIP support (Huggingface format)
 - [ ] Test CLIP-ViT-B/16 ability
 - [ ] Optimize for multimodal reconstruction 
+- [ ] Add accelerate support，先在main_fusion_mmae.py实现
 
 ### ❌ Blocked/Postponed
 
