@@ -512,6 +512,7 @@ class MultiModalFusionMAE_CLIP(torch.nn.Module):
         fusion_method: str = "concat",
         # image reconstruction params
         image_patch_out_dim: Optional[int] = None,  # 默认 p*p*3
+        output_masked_cls: bool = False,  # 是否在forward中输出masked的CLS token
     ) -> None:
         super().__init__()
 
@@ -525,11 +526,15 @@ class MultiModalFusionMAE_CLIP(torch.nn.Module):
 
         # 投影到同一维度，便于融合
         vision_out_dim = self.vision_encoder.emb_dim
-        self.vision_proj = ProjectionHead(vision_out_dim, proj_dim)
+        self.vision_proj = ProjectionHead(
+            vision_out_dim, proj_dim
+        )  # TODO：这要不要直接接到CLIP的encoder后面？
         self.text_proj = ProjectionHead(text_out_dim, proj_dim)
 
         # 融合方式
         self.fusion_method = fusion_method
+
+        self.output_masked_cls = output_masked_cls
 
         # 图像补丁解码器
         num_patches = (image_size // patch_size) * (image_size // patch_size)
@@ -563,10 +568,17 @@ class MultiModalFusionMAE_CLIP(torch.nn.Module):
         img_tokens = self.vision_proj(img_tokens)  # (B, T+1, C_proj)
         return img_tokens
 
-    def encode_image_tokens_cls(self, images: torch.Tensor) -> torch.Tensor:
-        """返回图像 CLS token: (B, C_proj)"""
+    def encode_image_tokens_cls(
+        self, images: torch.Tensor, pooling: bool = True
+    ) -> torch.Tensor:
+        """返回图像 CLS token: (B, C_proj) pooling=True时，反悔dim=1的mean pooling, pooling=False时，仅返回[CLS] token"""
         tokens = self.encode_image_tokens(images)  # (B, N+1, C_proj)
-        return tokens[:, 0, :]  # (B, C_proj)
+        if pooling:
+            return tokens[:, 1:, :].mean(
+                dim=1
+            )  # (B, C_proj) # 去掉[CLS] token 再求mean
+        else:
+            return tokens[:, 0, :]  # (B, C_proj)
 
     def encode_text_tokens(self, token_ids: torch.Tensor) -> torch.Tensor:
         """返回包含 [CLS] 的文本 token: (B, T+1, C_proj)"""
@@ -574,10 +586,17 @@ class MultiModalFusionMAE_CLIP(torch.nn.Module):
         txt_tokens = self.text_proj(txt_tokens)  # (B, T+1, C_proj)
         return txt_tokens
 
-    def encode_text_tokens_cls(self, token_ids: torch.Tensor) -> torch.Tensor:
-        """返回文本 CLS token: (B, C_proj)"""
+    def encode_text_tokens_cls(
+        self, token_ids: torch.Tensor, pooling: bool = True
+    ) -> torch.Tensor:
+        """返回文本 CLS token: (B, C_proj) pooling=True时，反悔dim=1的mean pooling, pooling=False时，仅返回[CLS] token"""
         tokens = self.encode_text_tokens(token_ids)  # (B, T+1, C_proj)
-        return tokens[:, 0, :]  # (B, C_proj)
+        if pooling:
+            return tokens[:, 1:, :].mean(
+                dim=1
+            )  # (B, C_proj) # 去掉[CLS] token 再求mean
+        else:
+            return tokens[:, 0, :]  # (B, C_proj)
 
     # ---------- Fusion ----------
     def fuse_features(
@@ -696,9 +715,16 @@ class MultiModalFusionMAE_CLIP(torch.nn.Module):
             "fused_tokens": fused_tokens,
             "image_patches": self.reconstruct_image(fused_tokens),
         }
+
+        if self.output_masked_cls:
+            img_cls = self.vision_proj(img_tokens)[:, 0, :]
+            txt_cls = self.text_proj(txt_tokens)[:, 0, :]
+            out["image_cls"] = img_cls
+            out["text_cls"] = txt_cls
+
         if self.language_decoder_head is not None:
             out["text_outputs"] = self.reconstruct_text(fused_tokens, token_ids)
-        return out
+        return out  # TODO: 下一步改造这里，将CLS token也返回
 
 
 class TextMLMDecoderHead(torch.nn.Module):

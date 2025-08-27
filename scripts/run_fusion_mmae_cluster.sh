@@ -25,8 +25,8 @@ ENTRY="main_fusion_mmae.py"
 
 surfix="train.epochs=${EPOCHS} train.batch_size=${BATCH_SIZE} train.data_root=/local/wding/Dataset/coco/images/" # General settings
 
-accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-4 $surfix 
+accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-5 $surfix 
 
-accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-3 $surfix
+# accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-3 $surfix
 
-accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-5 $surfix
+# accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-5 $surfix

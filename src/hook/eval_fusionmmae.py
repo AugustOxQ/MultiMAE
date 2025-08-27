@@ -24,6 +24,16 @@ torch.manual_seed(seed)
 random.seed(seed)
 
 
+CLIP_Retrieval_Metrics = {
+    "i2t_R1": 58.4,
+    "i2t_R5": 81.5,
+    "i2t_R10": 88.1,
+    "t2i_R1": 37.8,
+    "t2i_R5": 62.4,
+    "t2i_R10": 72.2,
+}
+
+
 class IMPDataset_test(Dataset):
     def __init__(self, annotation_path, image_path, vis_processors, txt_processors):
         self.annotations = json.load(open(annotation_path))

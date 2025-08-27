@@ -15,7 +15,7 @@ loss:
   contrastive_weight: 1.0
 
 train:
-  epochs: 1
+  epochs: 10
   lr: 1.0e-4
   batch_size: 256
   eval_batch_size: 256

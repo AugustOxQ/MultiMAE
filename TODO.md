@@ -26,6 +26,13 @@ Project development tracking and planning.
 - [ ] Optimize for multimodal reconstruction 
 - [ ] Add accelerate support，先在main_fusion_mmae.py实现
 
+### 📓 Quick Log
+
+2025-08-27
+
+- Need to double check accelerate's working condition on eval_fusionmmae
+- ‼️ Super slow contrastive loss decrease speed when only CLS token is used in contrastive training
+
 ### ❌ Blocked/Postponed
 
 
