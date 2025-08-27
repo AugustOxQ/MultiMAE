@@ -216,6 +216,7 @@ def train_fusionmmae(
                         "train/step_mlm_loss": float(mlm_loss.item()),
                         "train/step_contrastive_loss": float(contrastive_loss.item()),
                         "train/lr": float(lr_scheduler.get_last_lr()[0]),
+                        "train/epoch": float(epoch),
                     },
                     step=global_step,
                 )
@@ -288,6 +289,7 @@ def train_fusionmmae(
                             "val/step_mae_loss": float(mae_loss.item()),
                             "val/step_mlm_loss": float(mlm_loss.item()),
                             "val/step_contrastive_loss": float(contrastive_loss.item()),
+                            "val/epoch": float(epoch),
                         },
                         step=global_step,
                     )
@@ -440,6 +442,7 @@ def train_fusionmmae(
                         "test/step_mae_loss": float(mae_loss.item()),
                         "test/step_mlm_loss": float(mlm_loss.item()),
                         "test/step_contrastive_loss": float(contrastive_loss.item()),
+                        "test/epoch": float(epoch),  # TODO: 以后考虑也每个epoch都跑test
                     },
                     step=global_step,
                 )

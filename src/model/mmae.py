@@ -574,9 +574,7 @@ class MultiModalFusionMAE_CLIP(torch.nn.Module):
         """返回图像 CLS token: (B, C_proj) pooling=True时，反悔dim=1的mean pooling, pooling=False时，仅返回[CLS] token"""
         tokens = self.encode_image_tokens(images)  # (B, N+1, C_proj)
         if pooling:
-            return tokens[:, 1:, :].mean(
-                dim=1
-            )  # (B, C_proj) # 去掉[CLS] token 再求mean
+            return tokens.mean(dim=1)  # (B, C_proj) # 去掉[CLS] token 再求mean
         else:
             return tokens[:, 0, :]  # (B, C_proj)
 
@@ -592,9 +590,7 @@ class MultiModalFusionMAE_CLIP(torch.nn.Module):
         """返回文本 CLS token: (B, C_proj) pooling=True时，反悔dim=1的mean pooling, pooling=False时，仅返回[CLS] token"""
         tokens = self.encode_text_tokens(token_ids)  # (B, T+1, C_proj)
         if pooling:
-            return tokens[:, 1:, :].mean(
-                dim=1
-            )  # (B, C_proj) # 去掉[CLS] token 再求mean
+            return tokens.mean(dim=1)  # (B, C_proj) # 去掉[CLS] token 再求mean
         else:
             return tokens[:, 0, :]  # (B, C_proj)
 

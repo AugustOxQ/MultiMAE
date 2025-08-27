@@ -301,9 +301,11 @@ def evalrank(model, data_loader, npts=None, accelerator: Optional[Accelerator] =
         "t2i_meanR": int(round(meanR_t2i, 0)),
         "t2i_medR": int(round(medR_t2i, 0)),
         "t2i_mAP": round(mAP_t2i * 100, 2),
-        "t2i_rsum": round(sum(text_to_image_recall), 2),
-        "i2t_rsum": round(sum(image_to_text_recall), 2),
-        "r_sum": round(sum(text_to_image_recall) + sum(image_to_text_recall), 2),  # 100
+        "t2i_rsum": round(sum(text_to_image_recall[:2]), 2),
+        "i2t_rsum": round(sum(image_to_text_recall[:2]), 2),
+        "r_sum": round(
+            sum(text_to_image_recall[:2]) + sum(image_to_text_recall[:2]), 2
+        ),  # 100
     }
 
     if accelerator:
