@@ -161,3 +161,7 @@ out/
 output/
 outputs/
 notebooks/
+
+# Claude
+.claude/
+CLAUDE.md

@@ -19,6 +19,6 @@ echo "Using ${NUM_PROCS} processes"
 
 ENTRY="main_fusion_mmae.py"
 
-accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-5 train.epochs=20
+accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-5 train.epochs=10
 
 # model.backbone="openai/clip-vit-base-patch16" text.backbone="openai/clip-vit-base-patch16" train.batch_size=256
