@@ -19,6 +19,8 @@ from src.dataset import COCOImageTextDataset, MSCOCOTestDataset
 from src.hook.eval_fusionmmae import evalrank
 from accelerate import Accelerator
 
+from src.utils.schedule_tool import PhaseTraining
+
 
 def train_fusionmmae(
     # ===== 训练基础参数 =====
@@ -125,6 +127,9 @@ def train_fusionmmae(
     )
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_func)
 
+    # loss weight scheduler
+    loss_weight_scheduler = PhaseTraining(epochs)
+
     # Prepare for distributed/mixed-precision
     fusion_model, optimizer, train_loader, val_loader, retrieval_val_loader = (
         accelerator.prepare(
@@ -183,11 +188,15 @@ def train_fusionmmae(
                 img_cls, txt_cls, temperature=temperature
             )
 
+            weight_config = loss_weight_scheduler.get_loss_config(epoch)
+
             # Combined loss
             total_loss = (
-                mae_weight * mae_loss
-                + mlm_weight * mlm_loss
-                + contrastive_weight * contrastive_loss
+                mae_weight * mae_loss * weight_config["recon_weight"]
+                + mlm_weight * mlm_loss * weight_config["mlm_weight"]
+                + contrastive_weight
+                * contrastive_loss
+                * weight_config["contrastive_weight"]
             )
 
             accelerator.backward(total_loss)
