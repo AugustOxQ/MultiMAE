@@ -193,7 +193,7 @@ def train_fusionmmae(
             # Combined loss
             total_loss = (
                 mae_weight * mae_loss * weight_config["recon_weight"]
-                + mlm_weight * mlm_loss * weight_config["mlm_weight"]
+                + mlm_weight * mlm_loss * weight_config["recon_weight"]
                 + contrastive_weight
                 * contrastive_loss
                 * weight_config["contrastive_weight"]

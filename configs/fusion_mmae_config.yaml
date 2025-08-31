@@ -34,6 +34,6 @@ wandb:
   project: multi-fusion-mmae
   entity: augustoxq
   name: ""
-  tags: [FusionMMAE]
+  tags: [Local]
   notes: "多模态融合MAE训练"
   mode: online
