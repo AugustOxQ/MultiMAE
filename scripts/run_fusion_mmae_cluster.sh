@@ -20,9 +20,10 @@ echo "Using ${NUM_PROCS} processes"
 # Add input arguments for batch_size
 BATCH_SIZE=$1
 EPOCHS=$2
+note=$3
 
 ENTRY="main_fusion_mmae.py"
 
 surfix="train.epochs=${EPOCHS} train.batch_size=${BATCH_SIZE} train.data_root=/local/wding/Dataset/coco/images/ wandb.tags=['cluster']" # General settings
 
-accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-4 $surfix 
+accelerate launch --num_processes "${NUM_PROCS}" "${ENTRY}" train.lr=1e-4 $surfix wandb.notes=${note}
