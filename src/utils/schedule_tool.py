@@ -6,8 +6,8 @@ class PhaseTraining:
 
     def get_loss_config(self, epoch):
         if epoch < self.phase1_end:
-            return {"recon_weight": 0.5, "contrastive_weight": 1.0} # 做了个交换
+            return {"recon_weight": 1.0, "contrastive_weight": 1.0}
         elif epoch < self.phase2_end:
-            return {"recon_weight": 1.0, "contrastive_weight": 0.5}
+            return {"recon_weight": 1.0, "contrastive_weight": 1.0}
         else:
             return {"recon_weight": 1.0, "contrastive_weight": 1.0}
