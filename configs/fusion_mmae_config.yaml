@@ -17,8 +17,8 @@ loss:
 train:
   epochs: 10
   lr: 1.0e-4
-  batch_size: 256
-  eval_batch_size: 256
+  batch_size: 128
+  eval_batch_size: 128
   weight_decay: 5.0e-2
   seed: 42
   save_dir: None

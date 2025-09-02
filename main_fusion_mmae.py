@@ -5,7 +5,7 @@ import wandb
 from typing import Any, Dict, cast
 from accelerate import Accelerator
 
-from src.hook import train_fusionmmae
+from src.hook import train_fusionmmae, train_fusionmmae_multi_learner
 from src.utils import SimpleWandbLogger, setup_seed
 
 
@@ -48,7 +48,7 @@ def main(cfg: DictConfig) -> None:
         wandb.define_metric("train/early_stopped", step_metric="epoch")
         wandb_logger = SimpleWandbLogger()
 
-    results = train_fusionmmae(
+    results = train_fusionmmae_multi_learner(
         epochs=cfg.train.epochs,
         lr=cfg.train.lr,
         batch_size=cfg.train.batch_size,

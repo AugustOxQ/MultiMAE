@@ -165,3 +165,7 @@ notebooks/
 # Claude
 .claude/
 CLAUDE.md
+
+# Cursor
+cursor_log/
+cursor_tmp_file/

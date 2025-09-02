@@ -18,6 +18,7 @@ Project development tracking and planning.
 ## 📅 This Week's Progress (Sep 01-05)
 
 ### ✅ Completed
+- [x] Add separate multi-tasl learner head.
 
 ### ⏸️ In Progress
 - [ ] Test CLIP-ViT-B/16 ability
@@ -37,6 +38,15 @@ Project development tracking and planning.
 
 2025-08-29
 - Add two stages training strategy
+
+2025-09-02
+- Add transformer learner head to perform multi-task learning.
+
+image -> encoder -> masked image feature ->                         -> Image learner -> 
+                                                                                        MAE learner -> image decoder -> reconstruction loss
+                                            fusion -> Fused feature -> Joint learner ->
+                                                                                        MLM leaner -> text decoder -> reconstruction loss
+text ->  encoder -> masked text feature  ->                         -> Text learner  ->
 
 ## 📋 Backlog
 
