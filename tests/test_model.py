@@ -5,6 +5,8 @@ from helpers import MODEL_NAMES, compose_cfg, make_batch
 from mmae.models import MultiMAE
 from mmae.models.backbones import TINY_CLIP
 
+STEPS = 300
+
 EXPECTED_LOSSES = {
     "fusion_concat": {"loss", "loss_contrastive", "loss_mae", "loss_mlm"},
     "fusion_multilearner": {"loss", "loss_contrastive", "loss_mae", "loss_mlm"},
@@ -29,9 +31,10 @@ def test_forward_returns_expected_finite_losses(name, tokenizer):
     assert torch.allclose(out["loss"], parts)  # all weights are 1.0 by default
 
 
+@pytest.mark.parametrize("pooling", ["native", "mean"])
 @pytest.mark.parametrize("name", MODEL_NAMES)
-def test_every_trainable_parameter_gets_a_gradient(name, tokenizer):
-    model = tiny_model(name)
+def test_every_trainable_parameter_gets_a_gradient(name, pooling, tokenizer):
+    model = tiny_model(name, f"model.pooling={pooling}")
     model(make_batch(tokenizer))["loss"].backward()
     missing = [n for n, p in model.named_parameters() if p.requires_grad and p.grad is None]
     assert not missing, missing  # DDP (find_unused_parameters=False) needs this
@@ -59,13 +62,24 @@ def test_mean_pooling_trains_the_new_projection(tokenizer):
     assert not missing, missing
 
 
+# Four captions with the same token count, so padding cannot identify a row.
+EQUAL_LENGTH_CAPTIONS = ["a dog on the beach", "two men on big horses", "a cat on a bed", "a red bus in town"]
+
+
+@pytest.mark.slow
 @pytest.mark.parametrize("name", MODEL_NAMES)
 def test_tiny_batch_overfits(name, tokenizer):
+    """Learning smoke check: the reconstruction losses fall on a fixed tiny batch.
+
+    It does not prove the decoders use the visible inputs; test_decoders_see_only_visible_inputs
+    is the masking guard.
+    """
     model = tiny_model(name)
-    batch = make_batch(tokenizer)
+    batch = make_batch(tokenizer, captions=EQUAL_LENGTH_CAPTIONS)
+    assert len(set(batch["attention_mask"].sum(dim=1).tolist())) == 1
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
     history = []
-    for _ in range(150):
+    for _ in range(STEPS):
         out = model(batch)
         optimizer.zero_grad()
         out["loss"].backward()
@@ -75,7 +89,79 @@ def test_tiny_batch_overfits(name, tokenizer):
         if key in history[0]:
             first = sum(h[key] for h in history[:5]) / 5
             last = sum(h[key] for h in history[-5:]) / 5
+            print(name, key, round(first, 3), round(last, 3))
             assert last < 0.7 * first, (key, first, last)
+
+
+def test_multilearner_needs_both_modalities():
+    for name in ("image_mae", "text_mlm"):
+        with pytest.raises(ValueError, match="both modalities"):
+            tiny_model(name, "model.fusion.type=multilearner")
+
+
+@pytest.mark.parametrize("name", MODEL_NAMES)
+def test_decoders_see_only_visible_inputs(name, tokenizer, monkeypatch):
+    """Changing masked content leaves the decoder outputs bit-identical; changing visible content moves them.
+
+    Masks are recorded by wrapping random_patch_mask / random_token_mask in the model module, and every
+    forward is preceded by the same manual_seed, so all runs draw the same masks.
+    """
+    import mmae.models.model as model_module
+
+    model = tiny_model(name).eval()
+    masks = {}
+    for attr, key in (("random_patch_mask", "patch"), ("random_token_mask", "token")):
+        original = getattr(model_module, attr)
+
+        def wrapped(*args, _original=original, _key=key, **kwargs):
+            result = _original(*args, **kwargs)
+            masks[_key] = result[1] if _key == "patch" else result
+            return result
+
+        monkeypatch.setattr(model_module, attr, wrapped)
+    captured = {}
+    for dec in ("image_decoder", "text_decoder"):
+        if hasattr(model, dec):
+            getattr(model, dec).register_forward_hook(lambda m, i, o, _k=dec: captured.__setitem__(_k, o.detach().clone()))
+
+    def run(batch):
+        torch.manual_seed(123)
+        captured.clear()
+        with torch.no_grad():
+            model(batch)
+        return dict(captured)
+
+    batch = make_batch(tokenizer)
+    base = run(batch)
+    patch_mask, token_mask = masks.get("patch"), masks.get("token")
+    assert base and run(batch).keys() == base.keys() and all(torch.equal(base[k], run(batch)[k]) for k in base)
+
+    ps = model.vision.patch_size if model.use_image else None
+    grid = 224 // ps if ps else None
+    noise = torch.randn_like(batch["pixel_values"]) * 50
+    random_ids = torch.randint(1000, 40000, batch["input_ids"].shape)
+
+    def pixel_region(mask):  # patch order is row-major, as in patchify
+        m = mask.view(-1, 1, grid, grid).float()
+        return m.repeat_interleave(ps, dim=2).repeat_interleave(ps, dim=3).bool()
+
+    def changed(masked_part: bool):
+        new = dict(batch)
+        if model.use_image:
+            region = pixel_region(patch_mask) if masked_part else ~pixel_region(patch_mask)
+            new["pixel_values"] = torch.where(region, noise, batch["pixel_values"])
+        if model.use_text:
+            region = token_mask if masked_part else (
+                batch["attention_mask"].bool() & ~batch["special_tokens_mask"].bool() & ~token_mask
+            )
+            new["input_ids"] = torch.where(region, random_ids, batch["input_ids"])
+        return new
+
+    masked_changed = run(changed(True))
+    visible_changed = run(changed(False))
+    for key in base:
+        assert torch.equal(base[key], masked_changed[key]), f"{key} depends on masked content"
+        assert not torch.equal(base[key], visible_changed[key]), f"{key} ignores visible content"
 
 
 def test_empty_caption_in_batch_is_finite(tokenizer):

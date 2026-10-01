@@ -30,6 +30,8 @@ class MultiMAE(nn.Module):
             raise ValueError(f"modalities must be a non-empty subset of {sorted(MODALITIES)}, got {cfg.modalities}")
         self.use_image = "image" in modalities
         self.use_text = "text" in modalities
+        if cfg.fusion.type == "multilearner" and len(modalities) < 2:
+            raise ValueError("multilearner fusion needs both modalities")
         self.has_contrastive = self.use_image and self.use_text
         self.image_ratio = float(cfg.masking.image_ratio)
         self.text_ratio = float(cfg.masking.text_ratio)
@@ -60,10 +62,14 @@ class MultiMAE(nn.Module):
         self.fusion = build_fusion(cfg.fusion)
 
         for tower in self.towers():
-            # The native contrastive head is unused without the contrastive loss or under mean pooling;
-            # freeze it so DDP does not wait for gradients that never arrive.
+            # The native contrastive head is unused without the contrastive loss or under mean pooling,
+            # and the mean projection is unused without the contrastive loss; freeze them so DDP does
+            # not wait for gradients that never arrive.
             if not self.has_contrastive or cfg.pooling == "mean":
                 for param in tower.native_head_parameters():
+                    param.requires_grad = False
+            if not self.has_contrastive and tower.mean_projection is not None:
+                for param in tower.mean_projection.parameters():
                     param.requires_grad = False
             if cfg.freeze_backbones:
                 for param in tower.pretrained_parameters():
