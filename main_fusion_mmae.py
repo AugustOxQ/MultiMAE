@@ -46,6 +46,7 @@ def main(cfg: DictConfig) -> None:
         # Early stopping metrics
         wandb.define_metric("train/best_val_loss", step_metric="epoch")
         wandb.define_metric("train/early_stopped", step_metric="epoch")
+        wandb.define_metric("train/best_epoch", step_metric="epoch")
         wandb_logger = SimpleWandbLogger()
 
     results = train_fusionmmae_multi_learner(
@@ -97,13 +98,15 @@ def main(cfg: DictConfig) -> None:
             )
 
         # Log early stopping results (single values, not epoch-based)
-        wandb_logger.log_metrics(
-            {
-                "train/best_val_loss": results["best_val_loss"],
-                "train/early_stopped": results["early_stopped"],
-                "train/final_epoch": results["final_epoch"],
-            }
-        )
+        early_stop_metrics = {
+            "train/best_val_loss": results["best_val_loss"],
+            "train/early_stopped": results["early_stopped"],
+            "train/final_epoch": results["final_epoch"],
+        }
+        # best_epoch (1-based) is None when no epoch improved; wandb cannot log None, so omit it then
+        if results["best_epoch"] is not None:
+            early_stop_metrics["train/best_epoch"] = results["best_epoch"]
+        wandb_logger.log_metrics(early_stop_metrics)
 
         # Log test results (single values, not epoch-based)
         wandb_logger.log_metrics(

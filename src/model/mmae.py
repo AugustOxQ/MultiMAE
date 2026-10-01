@@ -523,6 +523,13 @@ class MultiModalFusionMAE_CLIP(torch.nn.Module):
 
         self.text_encoder = CLIPMLMEncoder(model_name=text_backbone, mask_ratio=0.15)
         text_out_dim = self.text_encoder.emb_dim
+        # The encoders are only used through encode_*_clean, which run under torch.no_grad(),
+        # so their params (CLIP backbones and the unused CLIPMLMEncoder.mlm_head) never get
+        # gradients. Freeze them explicitly so DDP does not wait for gradients that never come.
+        for param in self.vision_encoder.parameters():
+            param.requires_grad = False
+        for param in self.text_encoder.parameters():
+            param.requires_grad = False
 
         # 投影到同一维度，便于融合
         vision_out_dim = self.vision_encoder.emb_dim
@@ -763,6 +770,13 @@ class MultiModalFusionMAE_CLIP_MultiLearner(torch.nn.Module):
 
         self.text_encoder = CLIPMLMEncoder(model_name=text_backbone, mask_ratio=0.15)
         text_out_dim = self.text_encoder.emb_dim
+        # The encoders are only used through encode_*_clean, which run under torch.no_grad(),
+        # so their params (CLIP backbones and the unused CLIPMLMEncoder.mlm_head) never get
+        # gradients. Freeze them explicitly so DDP does not wait for gradients that never come.
+        for param in self.vision_encoder.parameters():
+            param.requires_grad = False
+        for param in self.text_encoder.parameters():
+            param.requires_grad = False
 
         # 投影到同一维度，便于融合
         vision_out_dim = self.vision_encoder.emb_dim

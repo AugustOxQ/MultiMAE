@@ -3,7 +3,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import wandb
 
-from src.hook import train_mmae
+from src.hook.train_mmae import train_mmae
 from src.utils import SimpleWandbLogger, setup_seed
 
 

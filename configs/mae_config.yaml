@@ -17,7 +17,7 @@ train:
   seed: 42
   save_dir: checkpoints
   save_interval: 40
-  data_root: dataset/cifar
+  data_root: data/cifar
   num_workers: 4
 
 wandb:

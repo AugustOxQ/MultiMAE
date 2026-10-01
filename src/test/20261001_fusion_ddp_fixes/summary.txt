@@ -1,0 +1,312 @@
+# SNAPSHOT generated 2026-10-01 03:57, before the fix wave. Paths point to a session scratchpad that
+# no longer exists, and the ablate_noprep_test result predates the encode_data guard (that run now exits 1
+# with a ValueError). Regenerate with `bash run_all.sh` then `python compare.py > summary.txt`.
+base_gpu_multi_r1 exit=0
+base_gpu_multi_r2 exit=0
+fixed_gpu_multi exit=0
+base_gpu_plain exit=0
+fixed_gpu_plain exit=0
+base_gpu_multi_best1 exit=0
+fixed_gpu_multi_best1 exit=0
+base_gpu_plain_best1 exit=0
+base_gpu_multi_det_r1 exit=0
+fixed_gpu_plain_best1 exit=0
+base_gpu_multi_det_r2 exit=0
+base_cpu2_multi exit=1
+fixed_gpu_multi_det exit=0
+base_cpu2_plain exit=1
+base_gpu_plain_det exit=0
+fixed_gpu_plain_det exit=0
+fixed_cpu2_multi exit=0
+base_gpu_multi_det_best1 exit=0
+fixed_gpu_multi_det_best1 exit=0
+fixed_cpu2_plain exit=0
+fixed_cpu2_multi_best1 exit=0
+ablate_nofreeze_cpu2_multi exit=1
+ablate_noprep_test_cpu2_multi exit=0
+eval_fixed_cpu1 exit=0
+eval_fixed_cpu2 exit=0
+eval_base_cpu1_unwrap_cuda exit=0
+eval_base_cpu2_as_is exit=1
+eval_base_cpu2_unwrap exit=1
+eval_base_cpu2_unwrap_cuda exit=0
+eval_fixed_cpu1_clip exit=0
+eval_fixed_cpu2_clip exit=0
+eval_base_cpu1_unwrap_cuda_clip exit=0
+eval_base_cpu2_unwrap_cuda_clip exit=0
+eval_noaccel_base_gpu exit=0
+eval_noaccel_fixed_gpu exit=0
+testeval_base exit=1
+testeval_fixed exit=1
+ablate_nofreeze_cpu2_multi exit=1 (rerun, TORCH_DISTRIBUTED_DEBUG=INFO)
+# testeval_base/testeval_fixed above are superseded: they ran with python -c, so cwd's src shadowed the baseline (logs in out/superseded/)
+testeval_script_base exit=1
+testeval_script_fixed exit=1
+eval_noaccel_full_base_gpu exit=0
+eval_noaccel_full_fixed_gpu exit=0
+fixed_gpu_multi_noimprove exit=0
+
+
+## A. Single GPU, baseline vs fixed (same seed, default GPU kernels)
+
+### base_gpu_multi_r1 vs base_gpu_multi_r2
+src: /tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src | /tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src
+errors: None | None
+  train/step_total_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_r1: [14.436737, 14.448918, 14.400364, 14.342808, 14.37431, 14.329472, 14.242737, 14.111017]
+     base_gpu_multi_r2: [14.436737, 14.448918, 14.400364, 14.342808, 14.37431, 14.329472, 14.242737, 14.111017]
+  train/step_mae_loss  n=8/8  bitwise identical=False  max|diff|=5.96e-08
+     base_gpu_multi_r1: [0.665629, 0.654256, 0.689997, 0.64766, 0.686837, 0.727934, 0.631794, 0.588597]
+     base_gpu_multi_r2: [0.665629, 0.654256, 0.689997, 0.64766, 0.686837, 0.727934, 0.631794, 0.588597]
+  train/step_mlm_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_r1: [10.999729, 11.003238, 10.904958, 10.910231, 10.902768, 10.837984, 10.810979, 10.766754]
+     base_gpu_multi_r2: [10.999729, 11.003238, 10.904958, 10.910231, 10.902768, 10.837984, 10.810979, 10.766754]
+  train/step_contrastive_loss  n=8/8  bitwise identical=False  max|diff|=2.38e-07
+     base_gpu_multi_r1: [2.771379, 2.791425, 2.805409, 2.784917, 2.784704, 2.763554, 2.799963, 2.755666]
+     base_gpu_multi_r2: [2.771379, 2.791425, 2.805409, 2.784917, 2.784704, 2.763554, 2.799963, 2.755666]
+  val step losses bitwise identical: False  max|diff|=9.54e-07
+  epoch 1 val_retrieval identical: True
+     base_gpu_multi_r1: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 100, 'val_retrieval/i2t_medR': 103, 'val_retrieval/i2t_mAP': 5.27, 'val_retrieval/t2i_R1': 4.39, 'val_retrieval/t2i_R5': 12.68, 'val_retrieval/t2i_R10': 26.34, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 22, 'val_retrieval/t2i_mAP': 11.98, 'val_retrieval/t2i_rsum': 17.07, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.15}
+  epoch 2 val_retrieval identical: True
+     base_gpu_multi_r1: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 99, 'val_retrieval/i2t_medR': 101, 'val_retrieval/i2t_mAP': 5.4, 'val_retrieval/t2i_R1': 4.88, 'val_retrieval/t2i_R5': 12.68, 'val_retrieval/t2i_R10': 25.37, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 21, 'val_retrieval/t2i_mAP': 12.39, 'val_retrieval/t2i_rsum': 17.56, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.63}
+  test_retrieval identical: True
+  val_total_losses: [14.350008964538574, 14.153186798095703] | [14.350008964538574, 14.153186321258545]
+  test_total_loss: 14.141016960144043 | 14.141016960144043
+  best_val_loss: 14.153186798095703 | 14.153186321258545
+  best_epoch: None | None
+  trainable/frozen params: 201988352/0 | 201988352/0
+
+### base_gpu_multi_r1 vs fixed_gpu_multi
+src: /tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src | /project/MultiAlign/MultiMAE/src
+errors: None | None
+  train/step_total_loss  n=8/8  bitwise identical=False  max|diff|=1.91e-06
+     base_gpu_multi_r1: [14.436737, 14.448918, 14.400364, 14.342808, 14.37431, 14.329472, 14.242737, 14.111017]
+     fixed_gpu_multi: [14.436737, 14.448918, 14.400364, 14.342808, 14.37431, 14.329472, 14.242737, 14.111015]
+  train/step_mae_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_r1: [0.665629, 0.654256, 0.689997, 0.64766, 0.686837, 0.727934, 0.631794, 0.588597]
+     fixed_gpu_multi: [0.665629, 0.654256, 0.689997, 0.64766, 0.686837, 0.727934, 0.631794, 0.588597]
+  train/step_mlm_loss  n=8/8  bitwise identical=False  max|diff|=1.91e-06
+     base_gpu_multi_r1: [10.999729, 11.003238, 10.904958, 10.910231, 10.902768, 10.837984, 10.810979, 10.766754]
+     fixed_gpu_multi: [10.999729, 11.003238, 10.904958, 10.910231, 10.902768, 10.837984, 10.810979, 10.766752]
+  train/step_contrastive_loss  n=8/8  bitwise identical=False  max|diff|=2.38e-07
+     base_gpu_multi_r1: [2.771379, 2.791425, 2.805409, 2.784917, 2.784704, 2.763554, 2.799963, 2.755666]
+     fixed_gpu_multi: [2.771379, 2.791425, 2.805409, 2.784917, 2.784704, 2.763554, 2.799963, 2.755666]
+  val step losses bitwise identical: False  max|diff|=9.54e-07
+  epoch 1 val_retrieval identical: True
+     base_gpu_multi_r1: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 100, 'val_retrieval/i2t_medR': 103, 'val_retrieval/i2t_mAP': 5.27, 'val_retrieval/t2i_R1': 4.39, 'val_retrieval/t2i_R5': 12.68, 'val_retrieval/t2i_R10': 26.34, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 22, 'val_retrieval/t2i_mAP': 11.98, 'val_retrieval/t2i_rsum': 17.07, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.15}
+  epoch 2 val_retrieval identical: True
+     base_gpu_multi_r1: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 99, 'val_retrieval/i2t_medR': 101, 'val_retrieval/i2t_mAP': 5.4, 'val_retrieval/t2i_R1': 4.88, 'val_retrieval/t2i_R5': 12.68, 'val_retrieval/t2i_R10': 25.37, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 21, 'val_retrieval/t2i_mAP': 12.39, 'val_retrieval/t2i_rsum': 17.56, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.63}
+  test_retrieval identical: True
+  val_total_losses: [14.350008964538574, 14.153186798095703] | [14.350008964538574, 14.153186798095703]
+  test_total_loss: 14.141016960144043 | 14.141016960144043
+  best_val_loss: 14.153186798095703 | 14.153186798095703
+  best_epoch: None | 2
+  trainable/frozen params: 201988352/0 | 26020096/175968256
+
+### base_gpu_plain vs fixed_gpu_plain
+src: /tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src | /project/MultiAlign/MultiMAE/src
+errors: None | None
+  train/step_total_loss  n=8/8  bitwise identical=False  max|diff|=1.91e-06
+     base_gpu_plain: [14.42518, 14.407225, 14.4023, 14.320577, 14.332862, 14.304931, 14.265295, 14.157242]
+     fixed_gpu_plain: [14.42518, 14.407227, 14.4023, 14.320577, 14.332862, 14.304931, 14.265295, 14.157242]
+  train/step_mae_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_plain: [0.666459, 0.678566, 0.670968, 0.647036, 0.654439, 0.680157, 0.65431, 0.649457]
+     fixed_gpu_plain: [0.666459, 0.678566, 0.670968, 0.647036, 0.654439, 0.680157, 0.65431, 0.649457]
+  train/step_mlm_loss  n=8/8  bitwise identical=False  max|diff|=9.54e-07
+     base_gpu_plain: [10.973778, 10.952707, 10.921853, 10.914633, 10.89819, 10.831483, 10.843822, 10.748994]
+     fixed_gpu_plain: [10.973778, 10.952708, 10.921853, 10.914633, 10.89819, 10.831483, 10.843822, 10.748994]
+  train/step_contrastive_loss  n=8/8  bitwise identical=False  max|diff|=2.38e-07
+     base_gpu_plain: [2.784944, 2.775952, 2.809479, 2.758908, 2.780232, 2.79329, 2.767163, 2.758791]
+     fixed_gpu_plain: [2.784944, 2.775952, 2.809479, 2.758908, 2.780232, 2.79329, 2.767163, 2.758791]
+  val step losses bitwise identical: False  max|diff|=9.54e-07
+  epoch 1 val_retrieval identical: True
+     base_gpu_plain: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 100, 'val_retrieval/i2t_medR': 104, 'val_retrieval/i2t_mAP': 5.28, 'val_retrieval/t2i_R1': 4.39, 'val_retrieval/t2i_R5': 12.2, 'val_retrieval/t2i_R10': 26.83, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 22, 'val_retrieval/t2i_mAP': 11.87, 'val_retrieval/t2i_rsum': 16.59, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 33.66}
+  epoch 2 val_retrieval identical: True
+     base_gpu_plain: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 21.95, 'val_retrieval/i2t_meanR': 99, 'val_retrieval/i2t_medR': 100, 'val_retrieval/i2t_mAP': 5.36, 'val_retrieval/t2i_R1': 4.88, 'val_retrieval/t2i_R5': 12.2, 'val_retrieval/t2i_R10': 25.85, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 21, 'val_retrieval/t2i_mAP': 12.31, 'val_retrieval/t2i_rsum': 17.07, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.15}
+  test_retrieval identical: True
+  val_total_losses: [14.33572006225586, 14.167364597320557] | [14.33572006225586, 14.167365074157715]
+  test_total_loss: 14.16237497329712 | 14.162375450134277
+  best_val_loss: 14.167364597320557 | 14.167365074157715
+  best_epoch: None | 2
+  trainable/frozen params: 197840384/0 | 21872128/175968256
+
+
+## F. Section A with torch.use_deterministic_algorithms(True)
+
+### base_gpu_multi_det_r1 vs base_gpu_multi_det_r2
+src: /tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src | /tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src
+errors: None | None
+  train/step_total_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_det_r1: [14.436737, 14.448918, 14.400364, 14.342808, 14.37431, 14.329472, 14.242737, 14.111017]
+     base_gpu_multi_det_r2: [14.436737, 14.448918, 14.400364, 14.342808, 14.37431, 14.329472, 14.242737, 14.111017]
+  train/step_mae_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_det_r1: [0.665629, 0.654256, 0.689997, 0.64766, 0.686837, 0.727934, 0.631794, 0.588597]
+     base_gpu_multi_det_r2: [0.665629, 0.654256, 0.689997, 0.64766, 0.686837, 0.727934, 0.631794, 0.588597]
+  train/step_mlm_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_det_r1: [10.999729, 11.003238, 10.904958, 10.910231, 10.902768, 10.837984, 10.810979, 10.766754]
+     base_gpu_multi_det_r2: [10.999729, 11.003238, 10.904958, 10.910231, 10.902768, 10.837984, 10.810979, 10.766754]
+  train/step_contrastive_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_det_r1: [2.771379, 2.791425, 2.805409, 2.784917, 2.784704, 2.763554, 2.799963, 2.755666]
+     base_gpu_multi_det_r2: [2.771379, 2.791425, 2.805409, 2.784917, 2.784704, 2.763554, 2.799963, 2.755666]
+  val step losses bitwise identical: True  max|diff|=0
+  epoch 1 val_retrieval identical: True
+     base_gpu_multi_det_r1: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 100, 'val_retrieval/i2t_medR': 103, 'val_retrieval/i2t_mAP': 5.27, 'val_retrieval/t2i_R1': 4.39, 'val_retrieval/t2i_R5': 12.68, 'val_retrieval/t2i_R10': 26.34, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 22, 'val_retrieval/t2i_mAP': 11.98, 'val_retrieval/t2i_rsum': 17.07, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.15}
+  epoch 2 val_retrieval identical: True
+     base_gpu_multi_det_r1: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 99, 'val_retrieval/i2t_medR': 101, 'val_retrieval/i2t_mAP': 5.4, 'val_retrieval/t2i_R1': 4.88, 'val_retrieval/t2i_R5': 12.68, 'val_retrieval/t2i_R10': 25.37, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 21, 'val_retrieval/t2i_mAP': 12.39, 'val_retrieval/t2i_rsum': 17.56, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.63}
+  test_retrieval identical: True
+  val_total_losses: [14.350008964538574, 14.153186798095703] | [14.350008964538574, 14.153186798095703]
+  test_total_loss: 14.141016960144043 | 14.141016960144043
+  best_val_loss: 14.153186798095703 | 14.153186798095703
+  best_epoch: None | None
+  trainable/frozen params: 201988352/0 | 201988352/0
+
+### base_gpu_multi_det_r1 vs fixed_gpu_multi_det
+src: /tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src | /project/MultiAlign/MultiMAE/src
+errors: None | None
+  train/step_total_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_det_r1: [14.436737, 14.448918, 14.400364, 14.342808, 14.37431, 14.329472, 14.242737, 14.111017]
+     fixed_gpu_multi_det: [14.436737, 14.448918, 14.400364, 14.342808, 14.37431, 14.329472, 14.242737, 14.111017]
+  train/step_mae_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_det_r1: [0.665629, 0.654256, 0.689997, 0.64766, 0.686837, 0.727934, 0.631794, 0.588597]
+     fixed_gpu_multi_det: [0.665629, 0.654256, 0.689997, 0.64766, 0.686837, 0.727934, 0.631794, 0.588597]
+  train/step_mlm_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_det_r1: [10.999729, 11.003238, 10.904958, 10.910231, 10.902768, 10.837984, 10.810979, 10.766754]
+     fixed_gpu_multi_det: [10.999729, 11.003238, 10.904958, 10.910231, 10.902768, 10.837984, 10.810979, 10.766754]
+  train/step_contrastive_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_multi_det_r1: [2.771379, 2.791425, 2.805409, 2.784917, 2.784704, 2.763554, 2.799963, 2.755666]
+     fixed_gpu_multi_det: [2.771379, 2.791425, 2.805409, 2.784917, 2.784704, 2.763554, 2.799963, 2.755666]
+  val step losses bitwise identical: True  max|diff|=0
+  epoch 1 val_retrieval identical: True
+     base_gpu_multi_det_r1: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 100, 'val_retrieval/i2t_medR': 103, 'val_retrieval/i2t_mAP': 5.27, 'val_retrieval/t2i_R1': 4.39, 'val_retrieval/t2i_R5': 12.68, 'val_retrieval/t2i_R10': 26.34, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 22, 'val_retrieval/t2i_mAP': 11.98, 'val_retrieval/t2i_rsum': 17.07, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.15}
+  epoch 2 val_retrieval identical: True
+     base_gpu_multi_det_r1: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 99, 'val_retrieval/i2t_medR': 101, 'val_retrieval/i2t_mAP': 5.4, 'val_retrieval/t2i_R1': 4.88, 'val_retrieval/t2i_R5': 12.68, 'val_retrieval/t2i_R10': 25.37, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 21, 'val_retrieval/t2i_mAP': 12.39, 'val_retrieval/t2i_rsum': 17.56, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.63}
+  test_retrieval identical: True
+  val_total_losses: [14.350008964538574, 14.153186798095703] | [14.350008964538574, 14.153186798095703]
+  test_total_loss: 14.141016960144043 | 14.141016960144043
+  best_val_loss: 14.153186798095703 | 14.153186798095703
+  best_epoch: None | 2
+  trainable/frozen params: 201988352/0 | 26020096/175968256
+
+### base_gpu_plain_det vs fixed_gpu_plain_det
+src: /tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src | /project/MultiAlign/MultiMAE/src
+errors: None | None
+  train/step_total_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_plain_det: [14.42518, 14.407227, 14.4023, 14.320577, 14.332862, 14.304931, 14.265295, 14.157242]
+     fixed_gpu_plain_det: [14.42518, 14.407227, 14.4023, 14.320577, 14.332862, 14.304931, 14.265295, 14.157242]
+  train/step_mae_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_plain_det: [0.666459, 0.678566, 0.670968, 0.647036, 0.654439, 0.680157, 0.65431, 0.649457]
+     fixed_gpu_plain_det: [0.666459, 0.678566, 0.670968, 0.647036, 0.654439, 0.680157, 0.65431, 0.649457]
+  train/step_mlm_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_plain_det: [10.973778, 10.952708, 10.921853, 10.914633, 10.89819, 10.831483, 10.843822, 10.748994]
+     fixed_gpu_plain_det: [10.973778, 10.952708, 10.921853, 10.914633, 10.89819, 10.831483, 10.843822, 10.748994]
+  train/step_contrastive_loss  n=8/8  bitwise identical=True  max|diff|=0
+     base_gpu_plain_det: [2.784944, 2.775952, 2.809479, 2.758908, 2.780232, 2.79329, 2.767163, 2.758791]
+     fixed_gpu_plain_det: [2.784944, 2.775952, 2.809479, 2.758908, 2.780232, 2.79329, 2.767163, 2.758791]
+  val step losses bitwise identical: True  max|diff|=0
+  epoch 1 val_retrieval identical: True
+     base_gpu_plain_det: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 19.51, 'val_retrieval/i2t_meanR': 100, 'val_retrieval/i2t_medR': 104, 'val_retrieval/i2t_mAP': 5.28, 'val_retrieval/t2i_R1': 4.39, 'val_retrieval/t2i_R5': 12.2, 'val_retrieval/t2i_R10': 26.83, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 22, 'val_retrieval/t2i_mAP': 11.87, 'val_retrieval/t2i_rsum': 16.59, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 33.66}
+  epoch 2 val_retrieval identical: True
+     base_gpu_plain_det: {'val_retrieval/i2t_R1': 2.44, 'val_retrieval/i2t_R5': 14.63, 'val_retrieval/i2t_R10': 21.95, 'val_retrieval/i2t_meanR': 99, 'val_retrieval/i2t_medR': 100, 'val_retrieval/i2t_mAP': 5.36, 'val_retrieval/t2i_R1': 4.88, 'val_retrieval/t2i_R5': 12.2, 'val_retrieval/t2i_R10': 25.85, 'val_retrieval/t2i_meanR': 21, 'val_retrieval/t2i_medR': 21, 'val_retrieval/t2i_mAP': 12.31, 'val_retrieval/t2i_rsum': 17.07, 'val_retrieval/i2t_rsum': 17.07, 'val_retrieval/r_sum': 34.15}
+  test_retrieval identical: True
+  val_total_losses: [14.33572006225586, 14.167364597320557] | [14.33572006225586, 14.167364597320557]
+  test_total_loss: 14.162374496459961 | 14.162374496459961
+  best_val_loss: 14.167364597320557 | 14.167364597320557
+  best_epoch: None | 2
+  trainable/frozen params: 197840384/0 | 21872128/175968256
+
+
+## B. Best-weights restore (min_delta=1e9: epoch 1 best, epoch 2 last)
+
+base_gpu_multi_best1: val losses=[14.350008964538574, 14.153186798095703] best_epoch=None | hash after ep1=d450fef714386bdd ep2=14fb470f1c16648c | test retrieval hash=14fb470f1c16648c test-loss hash=14fb470f1c16648c -> test used epoch2(last) (no best epoch recorded)
+fixed_gpu_multi_best1: val losses=[14.350008964538574, 14.153186798095703] best_epoch=1 | hash after ep1=2503debc05d5f1c8 ep2=9204f4ff8f62fb35 | test retrieval hash=2503debc05d5f1c8 test-loss hash=2503debc05d5f1c8 -> test used epoch1
+base_gpu_plain_best1: val losses=[14.33572006225586, 14.167364597320557] best_epoch=None | hash after ep1=5ffd338c9814130f ep2=589a50a5816b1b9c | test retrieval hash=589a50a5816b1b9c test-loss hash=589a50a5816b1b9c -> test used epoch2(last) (no best epoch recorded)
+fixed_gpu_plain_best1: val losses=[14.33572006225586, 14.167365074157715] best_epoch=1 | hash after ep1=af6f4055b18cf065 ep2=779ae22c3b585bc3 | test retrieval hash=af6f4055b18cf065 test-loss hash=af6f4055b18cf065 -> test used epoch1
+fixed_cpu2_multi_best1: val losses=[14.392799377441406, 14.291452407836914] best_epoch=1 | hash after ep1=ce6d26645c735837 ep2=d445e8c97508c1ff | test retrieval hash=ce6d26645c735837 test-loss hash=ce6d26645c735837 -> test used epoch1
+base_gpu_multi_det_best1: val losses=[14.350008964538574, 14.153186798095703] best_epoch=None | hash after ep1=0db6249b4f58eacd ep2=d4a58c72031b0e6b | test retrieval hash=d4a58c72031b0e6b test-loss hash=d4a58c72031b0e6b -> test used epoch2(last) (no best epoch recorded)
+fixed_gpu_multi_det_best1: val losses=[14.350008964538574, 14.153186798095703] best_epoch=1 | hash after ep1=0db6249b4f58eacd ep2=d4a58c72031b0e6b | test retrieval hash=0db6249b4f58eacd test-loss hash=0db6249b4f58eacd -> test used epoch1
+fixed_gpu_multi_noimprove: val losses=[14.350008964538574, 14.153185844421387] best_epoch=None | hash after ep1=15b8167d16b07ba1 ep2=f338f20e40d68f93 | test retrieval hash=f338f20e40d68f93 test-loss hash=f338f20e40d68f93 -> test used epoch2(last) (no best epoch recorded)
+fixed_cpu2_multi_best1 rank1: fixed_cpu2_multi_best1.rank1: val losses=[14.392799377441406, 14.291452407836914] best_epoch=1 | hash after ep1=ce6d26645c735837 ep2=d445e8c97508c1ff | test retrieval hash=ce6d26645c735837 test-loss hash=ce6d26645c735837 -> test used epoch1
+base_gpu_multi_best1 vs fixed_gpu_multi_best1: train step losses identical=False; epoch-1 val_retrieval identical=True; test_retrieval identical=False
+   test_retrieval base (last weights):  [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 9.3}, {'test_retrieval/i2t_R10': 20.93}, {'test_retrieval/i2t_meanR': 103}, {'test_retrieval/i2t_medR': 97}, {'test_retrieval/i2t_mAP': 5.04}, {'test_retrieval/t2i_R1': 2.33}, {'test_retrieval/t2i_R5': 12.56}, {'test_retrieval/t2i_R10': 23.72}, {'test_retrieval/t2i_meanR': 22}, {'test_retrieval/t2i_medR': 22}, {'test_retrieval/t2i_mAP': 10.0}, {'test_retrieval/t2i_rsum': 14.88}, {'test_retrieval/i2t_rsum': 9.3}, {'test_retrieval/r_sum': 24.19}]
+   test_retrieval fixed (best weights): [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 9.3}, {'test_retrieval/i2t_R10': 18.6}, {'test_retrieval/i2t_meanR': 104}, {'test_retrieval/i2t_medR': 96}, {'test_retrieval/i2t_mAP': 4.85}, {'test_retrieval/t2i_R1': 2.33}, {'test_retrieval/t2i_R5': 11.63}, {'test_retrieval/t2i_R10': 24.19}, {'test_retrieval/t2i_meanR': 22}, {'test_retrieval/t2i_medR': 22}, {'test_retrieval/t2i_mAP': 9.9}, {'test_retrieval/t2i_rsum': 13.95}, {'test_retrieval/i2t_rsum': 9.3}, {'test_retrieval/r_sum': 23.26}]
+base_gpu_plain_best1 vs fixed_gpu_plain_best1: train step losses identical=False; epoch-1 val_retrieval identical=True; test_retrieval identical=False
+   test_retrieval base (last weights):  [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 4.65}, {'test_retrieval/i2t_R10': 18.6}, {'test_retrieval/i2t_meanR': 103}, {'test_retrieval/i2t_medR': 97}, {'test_retrieval/i2t_mAP': 5.05}, {'test_retrieval/t2i_R1': 2.33}, {'test_retrieval/t2i_R5': 13.49}, {'test_retrieval/t2i_R10': 23.26}, {'test_retrieval/t2i_meanR': 22}, {'test_retrieval/t2i_medR': 21}, {'test_retrieval/t2i_mAP': 10.04}, {'test_retrieval/t2i_rsum': 15.81}, {'test_retrieval/i2t_rsum': 4.65}, {'test_retrieval/r_sum': 20.47}]
+   test_retrieval fixed (best weights): [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 9.3}, {'test_retrieval/i2t_R10': 18.6}, {'test_retrieval/i2t_meanR': 104}, {'test_retrieval/i2t_medR': 96}, {'test_retrieval/i2t_mAP': 4.9}, {'test_retrieval/t2i_R1': 2.33}, {'test_retrieval/t2i_R5': 11.63}, {'test_retrieval/t2i_R10': 24.19}, {'test_retrieval/t2i_meanR': 22}, {'test_retrieval/t2i_medR': 23}, {'test_retrieval/t2i_mAP': 9.88}, {'test_retrieval/t2i_rsum': 13.95}, {'test_retrieval/i2t_rsum': 9.3}, {'test_retrieval/r_sum': 23.26}]
+base_gpu_multi_det_best1 vs fixed_gpu_multi_det_best1: train step losses identical=True; epoch-1 val_retrieval identical=True; test_retrieval identical=False
+   test_retrieval base (last weights):  [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 9.3}, {'test_retrieval/i2t_R10': 20.93}, {'test_retrieval/i2t_meanR': 103}, {'test_retrieval/i2t_medR': 97}, {'test_retrieval/i2t_mAP': 5.04}, {'test_retrieval/t2i_R1': 2.33}, {'test_retrieval/t2i_R5': 12.56}, {'test_retrieval/t2i_R10': 23.72}, {'test_retrieval/t2i_meanR': 22}, {'test_retrieval/t2i_medR': 22}, {'test_retrieval/t2i_mAP': 10.0}, {'test_retrieval/t2i_rsum': 14.88}, {'test_retrieval/i2t_rsum': 9.3}, {'test_retrieval/r_sum': 24.19}]
+   test_retrieval fixed (best weights): [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 9.3}, {'test_retrieval/i2t_R10': 18.6}, {'test_retrieval/i2t_meanR': 104}, {'test_retrieval/i2t_medR': 96}, {'test_retrieval/i2t_mAP': 4.85}, {'test_retrieval/t2i_R1': 2.33}, {'test_retrieval/t2i_R5': 11.63}, {'test_retrieval/t2i_R10': 24.19}, {'test_retrieval/t2i_meanR': 22}, {'test_retrieval/t2i_medR': 22}, {'test_retrieval/t2i_mAP': 9.9}, {'test_retrieval/t2i_rsum': 13.95}, {'test_retrieval/i2t_rsum': 9.3}, {'test_retrieval/r_sum': 23.26}]
+
+## C. Two CPU processes (gloo) through the real hooks
+
+base_cpu2_multi: src=/tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src DistributedType.MULTI_CPU procs=2 train_steps=0 error="AttributeError: 'DistributedDataParallel' object has no attribute 'calculate_mae_reconstruction_loss'"
+   evalrank (images, texts) per call [val ep1, val ep2, test]: []  (expected [(41, 205), (41, 205), (43, 215)])
+base_cpu2_plain: src=/tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src DistributedType.MULTI_CPU procs=2 train_steps=0 error="AttributeError: 'DistributedDataParallel' object has no attribute 'calculate_mae_reconstruction_loss'"
+   evalrank (images, texts) per call [val ep1, val ep2, test]: []  (expected [(41, 205), (41, 205), (43, 215)])
+fixed_cpu2_multi: src=/project/MultiAlign/MultiMAE/src DistributedType.MULTI_CPU procs=2 train_steps=4 error=''
+   evalrank (images, texts) per call [val ep1, val ep2, test]: [(41, 205), (41, 205), (43, 215)]  (expected [(41, 205), (41, 205), (43, 215)])
+   trainable-param hashes rank0=['ce6d26645c735837', 'd445e8c97508c1ff', 'd445e8c97508c1ff'] rank1=['ce6d26645c735837', 'd445e8c97508c1ff', 'd445e8c97508c1ff'] equal=True
+   val total loss per epoch (local rank0, local rank1 -> global rank0, global rank1):
+     14.400656, 14.384943 -> 14.392799, 14.392799
+     14.302351, 14.280554 -> 14.291452, 14.291452
+   test_retrieval: [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 9.3}, {'test_retrieval/i2t_R10': 18.6}, {'test_retrieval/i2t_meanR': 104}, {'test_retrieval/i2t_medR': 96}, {'test_retrieval/i2t_mAP': 4.93}, {'test_retrieval/t2i_R1': 2.33}, {'test_retrieval/t2i_R5': 13.02}, {'test_retrieval/t2i_R10': 23.72}, {'test_retrieval/t2i_meanR': 22}, {'test_retrieval/t2i_medR': 22}, {'test_retrieval/t2i_mAP': 9.99}, {'test_retrieval/t2i_rsum': 15.35}, {'test_retrieval/i2t_rsum': 9.3}, {'test_retrieval/r_sum': 24.65}]
+fixed_cpu2_plain: src=/project/MultiAlign/MultiMAE/src DistributedType.MULTI_CPU procs=2 train_steps=4 error=''
+   evalrank (images, texts) per call [val ep1, val ep2, test]: [(41, 205), (41, 205), (43, 215)]  (expected [(41, 205), (41, 205), (43, 215)])
+   trainable-param hashes rank0=['62a08e639d068a2b', '53bf10896e58eca5', '53bf10896e58eca5'] rank1=['62a08e639d068a2b', '53bf10896e58eca5', '53bf10896e58eca5'] equal=True
+   val total loss per epoch (local rank0, local rank1 -> global rank0, global rank1):
+     14.381002, 14.370972 -> 14.375987, 14.375987
+     14.292618, 14.278090 -> 14.285354, 14.285354
+   test_retrieval: [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 9.3}, {'test_retrieval/i2t_R10': 18.6}, {'test_retrieval/i2t_meanR': 104}, {'test_retrieval/i2t_medR': 95}, {'test_retrieval/i2t_mAP': 4.93}, {'test_retrieval/t2i_R1': 2.33}, {'test_retrieval/t2i_R5': 12.56}, {'test_retrieval/t2i_R10': 23.26}, {'test_retrieval/t2i_meanR': 22}, {'test_retrieval/t2i_medR': 22}, {'test_retrieval/t2i_mAP': 9.95}, {'test_retrieval/t2i_rsum': 14.88}, {'test_retrieval/i2t_rsum': 9.3}, {'test_retrieval/r_sum': 24.19}]
+ablate_nofreeze_cpu2_multi: src=/tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/ablate_nofreeze/src DistributedType.MULTI_CPU procs=2 train_steps=1 error='RuntimeError: Expected to have finished reduction in the prior iteration before starting a new one. This error indicates that your module has parameters that we'
+   evalrank (images, texts) per call [val ep1, val ep2, test]: []  (expected [(41, 205), (41, 205), (43, 215)])
+ablate_noprep_test_cpu2_multi: src=/tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/ablate_noprep_test/src DistributedType.MULTI_CPU procs=2 train_steps=4 error=''
+   evalrank (images, texts) per call [val ep1, val ep2, test]: [(41, 205), (41, 205), (86, 430)]  (expected [(41, 205), (41, 205), (43, 215)])
+   trainable-param hashes rank0=['ce6d26645c735837', 'd445e8c97508c1ff', 'd445e8c97508c1ff'] rank1=['ce6d26645c735837', 'd445e8c97508c1ff', 'd445e8c97508c1ff'] equal=True
+   val total loss per epoch (local rank0, local rank1 -> global rank0, global rank1):
+     14.400656, 14.384943 -> 14.392799, 14.392799
+     14.302351, 14.280554 -> 14.291452, 14.291452
+   test_retrieval: [{'test_retrieval/i2t_R1': 0.0}, {'test_retrieval/i2t_R5': 2.33}, {'test_retrieval/i2t_R10': 9.3}, {'test_retrieval/i2t_meanR': 207}, {'test_retrieval/i2t_medR': 192}, {'test_retrieval/i2t_mAP': 2.52}, {'test_retrieval/t2i_R1': 1.16}, {'test_retrieval/t2i_R5': 5.12}, {'test_retrieval/t2i_R10': 13.02}, {'test_retrieval/t2i_meanR': 43}, {'test_retrieval/t2i_medR': 43}, {'test_retrieval/t2i_mAP': 5.76}, {'test_retrieval/t2i_rsum': 6.28}, {'test_retrieval/i2t_rsum': 2.33}, {'test_retrieval/r_sum': 8.6}]
+   ablate_nofreeze rank0: 397 params without grad, 397 under vision_encoder./text_encoder., others=[]
+   e.g. ['text_encoder.mlm_head.bias', 'text_encoder.mlm_head.weight'] ... ['vision_encoder.clip_vision.embeddings.patch_embedding.weight', 'vision_encoder.clip_vision.embeddings.class_embedding']
+   checkpoint fusion_mmae_epoch_2.pth: 642 keys, any 'module.' prefix=False, first=vision_encoder.clip_vision.embeddings.class_embedding
+
+## D. evalrank on a fixed model
+
+eval_fixed_cpu1: src=MultiMAE procs=1 model=MultiModalFusionMAE_CLIP_MultiLearner sd_key0=vision_encoder.clip_vision.embeddings.class_embedding images=41 texts=205 error=''
+   {'i2t_R1': 0.0, 'i2t_R5': 12.2, 'i2t_R10': 17.07, 'i2t_meanR': 106.0, 'i2t_medR': 106.0, 'i2t_mAP': 4.76, 't2i_R1': 0.49, 't2i_R5': 10.73, 't2i_R10': 28.29, 't2i_meanR': 21.0, 't2i_medR': 21.0, 't2i_mAP': 8.52, 't2i_rsum': 11.22, 'i2t_rsum': 12.2, 'r_sum': 23.41}
+eval_fixed_cpu2: src=MultiMAE procs=2 model=DistributedDataParallel sd_key0=module.vision_encoder.clip_vision.embeddings.class_embedding images=41 texts=205 error=''
+   {'i2t_R1': 0.0, 'i2t_R5': 12.2, 'i2t_R10': 17.07, 'i2t_meanR': 106.0, 'i2t_medR': 106.0, 'i2t_mAP': 4.76, 't2i_R1': 0.49, 't2i_R5': 10.73, 't2i_R10': 28.29, 't2i_meanR': 21.0, 't2i_medR': 21.0, 't2i_mAP': 8.52, 't2i_rsum': 11.22, 'i2t_rsum': 12.2, 'r_sum': 23.41}
+eval_base_cpu1_unwrap_cuda: src=baseline procs=1 model=MultiModalFusionMAE_CLIP_MultiLearner sd_key0=vision_encoder.clip_vision.embeddings.class_embedding images=41 texts=205 error=''
+   {'i2t_R1': 0.0, 'i2t_R5': 12.2, 'i2t_R10': 17.07, 'i2t_meanR': 106.0, 'i2t_medR': 106.0, 'i2t_mAP': 4.76, 't2i_R1': 0.49, 't2i_R5': 10.73, 't2i_R10': 28.29, 't2i_meanR': 21.0, 't2i_medR': 21.0, 't2i_mAP': 8.52, 't2i_rsum': 11.22, 'i2t_rsum': 12.2, 'r_sum': 23.41}
+eval_base_cpu2_as_is: src=baseline procs=2 model=DistributedDataParallel sd_key0=module.vision_encoder.clip_vision.embeddings.class_embedding images=None texts=None error="AttributeError: 'DistributedDataParallel' object has no attribute 'encode_image_tokens_cls'"
+eval_base_cpu2_unwrap: src=baseline procs=2 model=DistributedDataParallel sd_key0=module.vision_encoder.clip_vision.embeddings.class_embedding images=64 texts=320 error='RuntimeError: No CUDA GPUs are available'
+eval_base_cpu2_unwrap_cuda: src=baseline procs=2 model=DistributedDataParallel sd_key0=module.vision_encoder.clip_vision.embeddings.class_embedding images=64 texts=320 error=''
+   {'i2t_R1': 1.56, 'i2t_R5': 10.94, 'i2t_R10': 14.06, 'i2t_meanR': 170.0, 'i2t_medR': 166.0, 'i2t_mAP': 3.45, 't2i_R1': 0.62, 't2i_R5': 6.88, 't2i_R10': 16.25, 't2i_meanR': 32.0, 't2i_medR': 33.0, 't2i_mAP': 6.62, 't2i_rsum': 7.5, 'i2t_rsum': 12.5, 'r_sum': 20.0}
+eval_fixed_cpu1_clip: src=MultiMAE procs=1 model=MultiModalFusionMAE_CLIP_MultiLearner sd_key0=vision_encoder.clip_vision.embeddings.class_embedding images=41 texts=205 error=''
+   {'i2t_R1': 92.68, 'i2t_R5': 100.0, 'i2t_R10': 100.0, 'i2t_meanR': 4.0, 'i2t_medR': 3.0, 'i2t_mAP': 90.37, 't2i_R1': 86.83, 't2i_R5': 98.54, 't2i_R10': 99.51, 't2i_meanR': 1.0, 't2i_medR': 1.0, 't2i_mAP': 92.31, 't2i_rsum': 185.37, 'i2t_rsum': 192.68, 'r_sum': 378.05}
+eval_fixed_cpu2_clip: src=MultiMAE procs=2 model=DistributedDataParallel sd_key0=module.vision_encoder.clip_vision.embeddings.class_embedding images=41 texts=205 error=''
+   {'i2t_R1': 92.68, 'i2t_R5': 100.0, 'i2t_R10': 100.0, 'i2t_meanR': 4.0, 'i2t_medR': 3.0, 'i2t_mAP': 90.37, 't2i_R1': 86.83, 't2i_R5': 98.54, 't2i_R10': 99.51, 't2i_meanR': 1.0, 't2i_medR': 1.0, 't2i_mAP': 92.31, 't2i_rsum': 185.37, 'i2t_rsum': 192.68, 'r_sum': 378.05}
+eval_base_cpu1_unwrap_cuda_clip: src=baseline procs=1 model=MultiModalFusionMAE_CLIP_MultiLearner sd_key0=vision_encoder.clip_vision.embeddings.class_embedding images=41 texts=205 error=''
+   {'i2t_R1': 92.68, 'i2t_R5': 100.0, 'i2t_R10': 100.0, 'i2t_meanR': 4.0, 'i2t_medR': 3.0, 'i2t_mAP': 90.37, 't2i_R1': 86.83, 't2i_R5': 98.54, 't2i_R10': 99.51, 't2i_meanR': 1.0, 't2i_medR': 1.0, 't2i_mAP': 92.31, 't2i_rsum': 185.37, 'i2t_rsum': 192.68, 'r_sum': 378.05}
+eval_base_cpu2_unwrap_cuda_clip: src=baseline procs=2 model=DistributedDataParallel sd_key0=module.vision_encoder.clip_vision.embeddings.class_embedding images=64 texts=320 error=''
+   {'i2t_R1': 28.12, 'i2t_R5': 48.44, 'i2t_R10': 54.69, 'i2t_meanR': 87.0, 'i2t_medR': 16.0, 'i2t_mAP': 32.7, 't2i_R1': 25.62, 't2i_R5': 51.25, 't2i_R10': 56.25, 't2i_meanR': 16.0, 't2i_medR': 5.0, 't2i_mAP': 39.37, 't2i_rsum': 76.87, 'i2t_rsum': 76.56, 'r_sum': 153.44}
+eval_noaccel_base_gpu: src=baseline procs=1 model=MultiModalFusionMAE_CLIP_MultiLearner sd_key0=None images=41 texts=205 error=''
+   {'i2t_R1': 0.0, 'i2t_R5': 12.2, 'i2t_R10': 17.07, 'i2t_meanR': 106.0, 'i2t_medR': 106.0, 'i2t_mAP': 4.76, 't2i_R1': 0.49, 't2i_R5': 10.73, 't2i_R10': 28.29, 't2i_meanR': 21.0, 't2i_medR': 21.0, 't2i_mAP': 8.52, 't2i_rsum': 11.22, 'i2t_rsum': 12.2, 'r_sum': 23.41}
+eval_noaccel_fixed_gpu: src=MultiMAE procs=1 model=MultiModalFusionMAE_CLIP_MultiLearner sd_key0=None images=41 texts=205 error=''
+   {'i2t_R1': 0.0, 'i2t_R5': 12.2, 'i2t_R10': 17.07, 'i2t_meanR': 106.0, 'i2t_medR': 106.0, 'i2t_mAP': 4.76, 't2i_R1': 0.49, 't2i_R5': 10.73, 't2i_R10': 28.29, 't2i_meanR': 21.0, 't2i_medR': 21.0, 't2i_mAP': 8.52, 't2i_rsum': 11.22, 'i2t_rsum': 12.2, 'r_sum': 23.41}
+eval_fixed_cpu1 vs eval_fixed_cpu2: metrics identical=True; img emb max|diff|=0 txt emb max|diff|=0 bitwise=True maps equal=True
+eval_fixed_cpu1 vs eval_base_cpu1_unwrap_cuda: metrics identical=True; img emb max|diff|=0 txt emb max|diff|=0 bitwise=True maps equal=True
+eval_fixed_cpu1 vs eval_base_cpu2_unwrap_cuda: metrics identical=False differing={'i2t_R1': (0.0, 1.56), 'i2t_R5': (12.2, 10.94), 'i2t_R10': (17.07, 14.06), 'i2t_meanR': (106.0, 170.0), 'i2t_medR': (106.0, 166.0), 'i2t_mAP': (4.76, 3.45), 't2i_R1': (0.49, 0.62), 't2i_R5': (10.73, 6.88), 't2i_R10': (28.29, 16.25), 't2i_meanR': (21.0, 32.0), 't2i_medR': (21.0, 33.0), 't2i_mAP': (8.52, 6.62), 't2i_rsum': (11.22, 7.5), 'i2t_rsum': (12.2, 12.5), 'r_sum': (23.41, 20.0)}; shapes differ img (41, 256) vs (64, 256); eval_base_cpu2_unwrap_cuda t2i map tail=[30, 30, 30, 31, 31, 31, 31, 31]
+eval_fixed_cpu1_clip vs eval_fixed_cpu2_clip: metrics identical=True; img emb max|diff|=2.98e-07 txt emb max|diff|=0 bitwise=False maps equal=True
+eval_fixed_cpu1_clip vs eval_base_cpu1_unwrap_cuda_clip: metrics identical=True; img emb max|diff|=0 txt emb max|diff|=0 bitwise=True maps equal=True
+eval_fixed_cpu1_clip vs eval_base_cpu2_unwrap_cuda_clip: metrics identical=False differing={'i2t_R1': (92.68, 28.12), 'i2t_R5': (100.0, 48.44), 'i2t_R10': (100.0, 54.69), 'i2t_meanR': (4.0, 87.0), 'i2t_medR': (3.0, 16.0), 'i2t_mAP': (90.37, 32.7), 't2i_R1': (86.83, 25.62), 't2i_R5': (98.54, 51.25), 't2i_R10': (99.51, 56.25), 't2i_meanR': (1.0, 16.0), 't2i_medR': (1.0, 5.0), 't2i_mAP': (92.31, 39.37), 't2i_rsum': (185.37, 76.87), 'i2t_rsum': (192.68, 76.56), 'r_sum': (378.05, 153.44)}; shapes differ img (41, 512) vs (64, 512); eval_base_cpu2_unwrap_cuda_clip t2i map tail=[30, 30, 30, 31, 31, 31, 31, 31]
+eval_noaccel_base_gpu vs eval_noaccel_fixed_gpu: metrics identical=True; img emb max|diff|=0 txt emb max|diff|=0 bitwise=True maps equal=True
+
+## E. No-accelerator path at test_eval_fusionmmae.py scale (full test split, batch 256)
+
+testeval_script_base: src=/tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src/__init__.py last error=TypeError: TimmViTEncoder.__init__() got an unexpected keyword argument 'model_name'
+testeval_script_fixed: src=/project/MultiAlign/MultiMAE/src/__init__.py last error=TypeError: TimmViTEncoder.__init__() got an unexpected keyword argument 'model_name'
+eval_noaccel_full_base_gpu: src=/tmp/claude-0/-project-MultiAlign-MultiMAE/351b5a92-3403-4203-ae30-a483e09e263e/scratchpad/baseline/src images=5000 texts=25000 error=None
+   {'i2t_R1': 47.44, 'i2t_R5': 73.12, 'i2t_R10': 82.48, 'i2t_meanR': 91.0, 'i2t_medR': 15.0, 'i2t_mAP': 35.95, 't2i_R1': 29.78, 't2i_R5': 55.16, 't2i_R10': 66.23, 't2i_meanR': 25.0, 't2i_medR': 4.0, 't2i_mAP': 41.97, 't2i_rsum': 84.94, 'i2t_rsum': 120.56, 'r_sum': 205.5}
+eval_noaccel_full_fixed_gpu: src=/project/MultiAlign/MultiMAE/src images=5000 texts=25000 error=None
+   {'i2t_R1': 47.44, 'i2t_R5': 73.12, 'i2t_R10': 82.48, 'i2t_meanR': 91.0, 'i2t_medR': 15.0, 'i2t_mAP': 35.95, 't2i_R1': 29.78, 't2i_R5': 55.16, 't2i_R10': 66.23, 't2i_meanR': 25.0, 't2i_medR': 4.0, 't2i_mAP': 41.97, 't2i_rsum': 84.94, 'i2t_rsum': 120.56, 'r_sum': 205.5}
+metrics identical=True; embeddings bitwise=True; maps equal=True

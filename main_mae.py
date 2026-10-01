@@ -2,7 +2,7 @@ import os
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from src.hook import train_mae
+from src.hook.train_mae import train_mae
 from src.utils import SimpleWandbLogger
 import wandb
 
@@ -105,15 +105,16 @@ def main(cfg: DictConfig) -> None:
     # log epoch-wise metrics to wandb
     train_losses = results.get("train_losses", [])
     val_losses = results.get("val_losses", [])
-    for epoch, (tr, va) in enumerate(zip(train_losses, val_losses), start=1):
-        # log without explicit step; use epoch axis defined above
-        wandb_logger.log_metrics(
-            {
-                "train/epoch_loss": tr,
-                "val/epoch_loss": va,
-                "epoch": epoch,
-            }
-        )
+    if wandb_logger is not None:
+        for epoch, (tr, va) in enumerate(zip(train_losses, val_losses), start=1):
+            # log without explicit step; use epoch axis defined above
+            wandb_logger.log_metrics(
+                {
+                    "train/epoch_loss": tr,
+                    "val/epoch_loss": va,
+                    "epoch": epoch,
+                }
+            )
 
     last_lr = results.get("last_lr", None)
     best_val = min(val_losses) if len(val_losses) > 0 else None

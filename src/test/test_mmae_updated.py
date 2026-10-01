@@ -3,8 +3,10 @@
 测试更新后的 MMAE 训练功能
 """
 
+import math
+import sys
 import torch
-from src.hook import train_mmae
+from src.hook.train_mmae import train_mmae
 
 
 def test_mmae_training():
@@ -19,7 +21,7 @@ def test_mmae_training():
             batch_size=4,  # 小batch size
             weight_decay=1e-4,
             seed=42,
-            image_size=32,  # 小图像尺寸
+            image_size=64,  # 小图像尺寸 (32 gives only 4 patches -> empty-mean NaN in encode_image_split)
             data_root="/data/SSD/coco/images/",
             num_workers=0,  # 避免多进程问题
             temperature=0.07,
@@ -52,6 +54,20 @@ def test_mmae_training():
         import traceback
 
         traceback.print_exc()
+        return False
+
+    losses = (
+        results["train_total_losses"]
+        + results["val_total_losses"]
+        + [
+            results["test_total_loss"],
+            results["test_mae_loss"],
+            results["test_mlm_loss"],
+            results["test_contrastive_loss"],
+        ]
+    )
+    if not all(math.isfinite(x) for x in losses):
+        print(f"❌ 损失中出现非有限值 (NaN/inf): {losses}")
         return False
 
     return True
@@ -106,3 +122,4 @@ if __name__ == "__main__":
         print("\n🎉 所有测试通过！")
     else:
         print("\n❌ 测试失败，请检查错误信息")
+        sys.exit(1)

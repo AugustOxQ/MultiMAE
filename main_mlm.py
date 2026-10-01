@@ -7,7 +7,7 @@ from datasets import load_dataset
 import torch
 from torch.utils.data import DataLoader
 
-from src.hook import train_mlm
+from src.hook.train_mlm import train_mlm
 from src.utils import SimpleWandbLogger, setup_seed
 
 

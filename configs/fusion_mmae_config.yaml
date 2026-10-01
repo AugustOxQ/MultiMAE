@@ -21,7 +21,7 @@ train:
   eval_batch_size: 128
   weight_decay: 5.0e-2
   seed: 42
-  save_dir: None
+  save_dir: null  # null disables checkpoint saving; set a path to save
   save_interval: 10
   data_root: /data/SSD/coco/images/
   num_workers: 8

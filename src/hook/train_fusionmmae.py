@@ -22,6 +22,36 @@ from accelerate import Accelerator
 from src.utils.schedule_tool import PhaseTraining
 
 
+def _mean_across_processes(accelerator: Accelerator, value: float) -> float:
+    """Mean of a per-process scalar over all processes (returned unchanged with one process).
+
+    Each rank only sees its shard of the val loader, so without this the ranks can disagree on
+    early stopping (a hang) and on which epoch is best.
+    """
+    if accelerator.num_processes == 1:
+        return value
+    t = torch.tensor(value, dtype=torch.float64, device=accelerator.device)
+    return accelerator.reduce(t, reduction="mean").item()
+
+
+def _snapshot_state(model: torch.nn.Module) -> dict:
+    """CPU copy of the trainable params plus all buffers, used to restore the best epoch.
+
+    The frozen CLIP backbones never change, so they are left out to save host memory.
+    """
+    keep = {n for n, p in model.named_parameters() if p.requires_grad}
+    keep |= {n for n, _ in model.named_buffers()}
+    return {
+        k: v.detach().cpu().clone() for k, v in model.state_dict().items() if k in keep
+    }
+
+
+def _restore_state(model: torch.nn.Module, state: dict) -> None:
+    missing, unexpected = model.load_state_dict(state, strict=False)
+    frozen = {n for n, p in model.named_parameters() if not p.requires_grad}
+    assert not unexpected and set(missing) <= frozen, (missing, unexpected)
+
+
 def train_fusionmmae(
     # ===== 训练基础参数 =====
     epochs: int = 10,
@@ -136,6 +166,9 @@ def train_fusionmmae(
             fusion_model, optimizer, train_loader, val_loader, retrieval_val_loader
         )
     )
+    # Under DDP the wrapper does not expose the model's custom methods, so call them on the
+    # unwrapped module; forward() still goes through the wrapper so gradients get synced.
+    unwrapped_model = accelerator.unwrap_model(fusion_model)
 
     train_losses, val_losses = [], []
     train_mae_losses, train_mlm_losses, train_contrastive_losses = [], [], []
@@ -146,6 +179,7 @@ def train_fusionmmae(
     best_val_loss = float("inf")
     patience_counter = 0
     best_model_state = None
+    best_epoch = None
 
     for epoch in range(epochs):
         fusion_model.train()
@@ -171,7 +205,7 @@ def train_fusionmmae(
             # 1. MAE reconstruction loss (from image patches)
             # 使用正确的重建损失计算
             fused_tokens = outputs["fused_tokens"]
-            mae_loss = fusion_model.calculate_mae_reconstruction_loss(
+            mae_loss = unwrapped_model.calculate_mae_reconstruction_loss(
                 images, fused_tokens, mask_ratio=0.75
             )
 
@@ -182,8 +216,8 @@ def train_fusionmmae(
                 mlm_loss = calculate_mlm_loss(text_logits, token_ids, text_mask)
 
             # 3. Simplified contrastive loss (only CLS tokens)
-            img_cls = fusion_model.encode_image_tokens_cls(images)
-            txt_cls = fusion_model.encode_text_tokens_cls(token_ids)
+            img_cls = unwrapped_model.encode_image_tokens_cls(images)
+            txt_cls = unwrapped_model.encode_text_tokens_cls(token_ids)
             contrastive_loss, _, _ = clip_contrastive_loss(
                 img_cls, txt_cls, temperature=temperature
             )
@@ -266,7 +300,7 @@ def train_fusionmmae(
 
                 # Validation losses
                 fused_tokens = outputs["fused_tokens"]
-                mae_loss = fusion_model.calculate_mae_reconstruction_loss(
+                mae_loss = unwrapped_model.calculate_mae_reconstruction_loss(
                     images, fused_tokens, mask_ratio=0.75
                 )
 
@@ -275,8 +309,8 @@ def train_fusionmmae(
                     text_logits, text_mask = outputs["text_outputs"]
                     mlm_loss = calculate_mlm_loss(text_logits, token_ids, text_mask)
 
-                img_feat = fusion_model.encode_image_tokens_cls(images)
-                txt_feat = fusion_model.encode_text_tokens_cls(token_ids)
+                img_feat = unwrapped_model.encode_image_tokens_cls(images)
+                txt_feat = unwrapped_model.encode_text_tokens_cls(token_ids)
                 contrastive_loss, _, _ = clip_contrastive_loss(
                     img_feat, txt_feat, temperature=temperature
                 )
@@ -304,6 +338,8 @@ def train_fusionmmae(
                     )
 
         avg_val_loss = sum(val_epoch_losses) / max(1, len(val_epoch_losses))
+        # Same value on every rank, so early stopping and the best epoch agree across processes
+        avg_val_loss = _mean_across_processes(accelerator, avg_val_loss)
         val_losses.append(avg_val_loss)
 
         # Calculate validation epoch averages for individual losses
@@ -311,6 +347,11 @@ def train_fusionmmae(
         avg_val_mlm_loss = sum(val_epoch_mlm_losses) / max(1, len(val_epoch_mlm_losses))
         avg_val_contrastive_loss = sum(val_epoch_contrastive_losses) / max(
             1, len(val_epoch_contrastive_losses)
+        )
+        avg_val_mae_loss = _mean_across_processes(accelerator, avg_val_mae_loss)
+        avg_val_mlm_loss = _mean_across_processes(accelerator, avg_val_mlm_loss)
+        avg_val_contrastive_loss = _mean_across_processes(
+            accelerator, avg_val_contrastive_loss
         )
 
         val_mae_losses.append(avg_val_mae_loss)
@@ -337,7 +378,9 @@ def train_fusionmmae(
         if avg_val_loss < best_val_loss - min_delta:
             best_val_loss = avg_val_loss
             patience_counter = 0
-            best_model_state = fusion_model.state_dict().copy()
+            # Real copy: state_dict() holds references to the live tensors
+            best_model_state = _snapshot_state(unwrapped_model)
+            best_epoch = epoch + 1
             accelerator.print(f"Epoch {epoch+1}: 新的最佳验证损失: {best_val_loss:.4f}")
         else:
             patience_counter += 1
@@ -363,13 +406,24 @@ def train_fusionmmae(
             save_path = os.path.join(save_dir, f"fusion_mmae_epoch_{epoch+1}.pth")
             torch.save(
                 {
-                    "fusion_model": fusion_model.state_dict(),
+                    "fusion_model": unwrapped_model.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "epoch": epoch,
                 },
                 save_path,
             )
             accelerator.print(f"Model checkpoint saved at: {save_path}")
+
+    # Test with the best-val weights (the final weights if no epoch ever improved)
+    if best_model_state is not None:
+        _restore_state(unwrapped_model, best_model_state)
+        accelerator.print(
+            f"Restored best weights from epoch {best_epoch} (val loss {best_val_loss:.4f})"
+        )
+    else:
+        accelerator.print("No epoch improved the val loss; testing the final weights")
+    # 0-based epoch (like train/epoch) of the weights the test metrics come from
+    test_epoch = best_epoch - 1 if best_model_state is not None else epoch
 
     # Test set evaluation
     accelerator.print("\n=== 开始测试集评估 ===")
@@ -409,7 +463,7 @@ def train_fusionmmae(
 
             # Test losses
             fused_tokens = outputs["fused_tokens"]
-            mae_loss = fusion_model.calculate_mae_reconstruction_loss(
+            mae_loss = unwrapped_model.calculate_mae_reconstruction_loss(
                 images, fused_tokens, mask_ratio=0.75
             )
 
@@ -418,8 +472,8 @@ def train_fusionmmae(
                 text_logits, text_mask = outputs["text_outputs"]
                 mlm_loss = calculate_mlm_loss(text_logits, token_ids, text_mask)
 
-            img_feat = fusion_model.encode_image_tokens_cls(images)
-            txt_feat = fusion_model.encode_text_tokens_cls(token_ids)
+            img_feat = unwrapped_model.encode_image_tokens_cls(images)
+            txt_feat = unwrapped_model.encode_text_tokens_cls(token_ids)
             contrastive_loss, _, _ = clip_contrastive_loss(
                 img_feat, txt_feat, temperature=temperature
             )
@@ -451,7 +505,7 @@ def train_fusionmmae(
                         "test/step_mae_loss": float(mae_loss.item()),
                         "test/step_mlm_loss": float(mlm_loss.item()),
                         "test/step_contrastive_loss": float(contrastive_loss.item()),
-                        "test/epoch": float(epoch),  # TODO: 以后考虑也每个epoch都跑test
+                        "test/epoch": float(test_epoch),  # TODO: 以后考虑也每个epoch都跑test
                     },
                     step=global_step,
                 )
@@ -484,6 +538,8 @@ def train_fusionmmae(
         shuffle=False,
         num_workers=num_workers,
     )
+    # Shard across processes; evalrank gathers the embeddings back
+    retrieval_test_loader = accelerator.prepare(retrieval_test_loader)
 
     retrieval_metrics = evalrank(
         fusion_model, retrieval_test_loader, accelerator=accelerator
@@ -515,6 +571,7 @@ def train_fusionmmae(
         "last_lr": lr_scheduler.get_last_lr()[0],
         # Early stopping info
         "best_val_loss": best_val_loss,
+        "best_epoch": best_epoch,
         "early_stopped": patience_counter >= patience,
         "final_epoch": epoch + 1,
     }

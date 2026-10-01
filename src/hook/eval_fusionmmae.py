@@ -17,6 +17,7 @@ from PIL import Image
 import random
 from typing import Optional
 from accelerate import Accelerator
+from accelerate.data_loader import DataLoaderStateMixin
 
 seed = 42
 np.random.seed(seed)
@@ -126,7 +127,27 @@ def calculate_metrics(inds, mappings, captions_per_image, device):
 
 
 def encode_data(model, data_loader, accelerator: Optional[Accelerator] = None):
-    """Encode all images and captions loadable by `data_loader`"""
+    """Encode all images and captions loadable by `data_loader`.
+
+    With an accelerator, `data_loader` should be prepared (sharded); embeddings are gathered
+    from every process batch by batch, so the result covers the whole dataset exactly once.
+    """
+    if (
+        accelerator is not None
+        and accelerator.num_processes > 1
+        and not isinstance(data_loader, DataLoaderStateMixin)
+    ):
+        # DataLoaderStateMixin is the base of both DataLoaderShard and DataLoaderDispatcher,
+        # the types accelerator.prepare returns for a DataLoader.
+        raise ValueError(
+            "encode_data got a data_loader that was not prepared by accelerate while running "
+            f"on {accelerator.num_processes} processes: every process would encode the full "
+            "set and the gather would count each sample once per process. Pass "
+            "`accelerator.prepare(data_loader)`."
+        )
+    if accelerator is not None:
+        # DDP does not expose the model's custom encode_* methods
+        model = accelerator.unwrap_model(model)
     # switch to evaluate mode
     model.eval()
     if accelerator:
@@ -137,15 +158,7 @@ def encode_data(model, data_loader, accelerator: Optional[Accelerator] = None):
     # Lists to keep all the embeddings
     img_embs = []
     cap_embs = []
-
-    #  (as there are multiple pieces of text for each image)
-    image_to_text_map = []
-
-    # text_to_image_map[i] gives the corresponding image index for the ith text
-    text_to_image_map = []
-
-    text_index = 0
-    image_index = 0
+    captions_per_image = None
 
     device = next(model.parameters()).device
     with torch.no_grad():
@@ -162,33 +175,36 @@ def encode_data(model, data_loader, accelerator: Optional[Accelerator] = None):
             captions = captions.to(device)
             batch_size, captions_per_image, _ = captions.shape
 
-            # Update text_to_image_map and image_to_text_map for this batch
-            for i in range(batch_size):
-                # the next image corresponds to text captions [text_index ... text_index + captions_per_image - 1]
-                text_indices = list(range(text_index, text_index + captions_per_image))
-                image_to_text_map.append(text_indices)
-                text_index += captions_per_image
+            img_emb = model.encode_image_tokens_cls(images)  # (B, D)
+            cap_emb = model.encode_text_tokens_cls(
+                torch.flatten(captions, start_dim=0, end_dim=1)
+            )  # (B * captions_per_image, D)
+            cap_emb = cap_emb.view(batch_size, captions_per_image, -1)  # (B, cpi, D)
 
-                # Each of the next captions_per_image text captions correspond to the same image
-                text_to_image_map += [image_index] * captions_per_image
-                image_index += 1
+            if accelerator is not None:
+                # Gather per batch, with dim 0 counting samples (images), so that on the last
+                # batch gather_for_metrics drops the samples the sampler duplicated to give
+                # every process a full batch.
+                img_emb = accelerator.gather_for_metrics(img_emb)
+                cap_emb = accelerator.gather_for_metrics(cap_emb)
 
-            captions = torch.flatten(captions, start_dim=0, end_dim=1)
-
-            img_embs.append(model.encode_image_tokens_cls(images))
-            cap_embs.append(model.encode_text_tokens_cls(captions))
+            img_embs.append(img_emb)
+            cap_embs.append(torch.flatten(cap_emb, start_dim=0, end_dim=1))
 
     image_embeddings = torch.cat(img_embs, axis=0)  # type: ignore
     text_embeddings = torch.cat(cap_embs, axis=0)  # type: ignore
-    text_to_image_map = torch.LongTensor(text_to_image_map).to(device)
-    image_to_text_map = torch.LongTensor(image_to_text_map).to(device)
 
-    # gather across processes for global metrics
-    if accelerator is not None:
-        image_embeddings = accelerator.gather_for_metrics(image_embeddings)
-        text_embeddings = accelerator.gather_for_metrics(text_embeddings)
-        text_to_image_map = accelerator.gather_for_metrics(text_to_image_map)
-        image_to_text_map = accelerator.gather_for_metrics(image_to_text_map)
+    # Images and their captions stay aligned through the gather, so image i owns texts
+    # i*cpi ... i*cpi + cpi - 1.
+    num_images = image_embeddings.shape[0]
+    # text_to_image_map[i] gives the corresponding image index for the ith text
+    text_to_image_map = torch.arange(num_images, device=device).repeat_interleave(
+        captions_per_image
+    )
+    # image_to_text_map[i] gives the indices of the captions of the ith image
+    image_to_text_map = torch.arange(
+        num_images * captions_per_image, device=device
+    ).view(num_images, captions_per_image)
 
     image_embeddings /= image_embeddings.norm(dim=-1, keepdim=True)
     text_embeddings /= text_embeddings.norm(dim=-1, keepdim=True)
@@ -270,7 +286,7 @@ def evalrank(model, data_loader, npts=None, accelerator: Optional[Accelerator] =
         # Extract top k indices only
         topk = inds[:, :k]
 
-        correct = torch.zeros((num_im,), dtype=torch.bool).cuda()
+        correct = torch.zeros((num_im,), dtype=torch.bool, device=inds.device)
 
         #  For each image, check whether one of the 5 relevant captions was retrieved
         # Check if image matches its ith caption (for i=0..4)

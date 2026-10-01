@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/project/MultiAlign/MultiMAE/src/test/20261001_legacy_entrypoints/run_small_coco.py", line 15, in <module>
+    import main_mmae
+ModuleNotFoundError: No module named 'main_mmae'
