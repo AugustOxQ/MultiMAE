@@ -1,0 +1,7 @@
+defaults:
+  - base
+  - _self_
+
+name: fusion_multilearner
+fusion:
+  type: multilearner

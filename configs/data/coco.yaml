@@ -1,0 +1,6 @@
+images_dir: /data/SSD/coco/images
+annotations_dir: /data/SSD/coco/annotations   # coco_karpathy_{train,val,test}.json
+max_text_len: 32
+limit_train: null   # first N items of each split (null = all); for debug runs
+limit_val: null
+limit_test: null

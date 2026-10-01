@@ -1,0 +1,16 @@
+epochs: 10
+batch_size: 128
+eval_batch_size: 256
+lr: 1.0e-4          # new modules; untested placeholder
+lr_backbone: 1.0e-5 # CLIP towers; untested placeholder
+weight_decay: 0.05
+warmup_steps: 500
+grad_clip: 1.0      # null disables
+grad_accum: 1
+precision: "no"     # "no" | bf16
+eval_every: 1
+patience: 5
+min_delta: 1.0e-4
+log_every: 50
+num_workers: 8
+save: best          # best | none

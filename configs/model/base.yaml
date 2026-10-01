@@ -1,0 +1,33 @@
+# Shared model settings; every model/*.yaml starts from this file.
+name: ???
+modalities: [image, text]
+backbone:
+  type: hf_clip
+  pretrained: openai/clip-vit-base-patch32   # or tiny-random-clip for tests and CPU smoke runs
+  processor: openai/clip-vit-base-patch32    # tokenizer and image preprocessing
+freeze_backbones: false
+pooling: native          # native: CLIP's CLS/EOS pooling + pretrained projections; mean: mean pool + new projection
+masking:
+  image_ratio: 0.75
+  text_ratio: 0.15
+fusion:
+  type: concat           # none | concat | multilearner
+  dim: 256
+  depth: 0               # concat: transformer layers after concatenation (0 = plain concat)
+  heads: 8
+  learner_depth: 2       # multilearner only
+  learner_ff_dim: 512    # multilearner only
+decoder:
+  depth: 4
+  heads: 8
+  dropout: 0.1
+loss:
+  weights:
+    contrastive: 1.0
+    mae: 1.0
+    mlm: 1.0
+  gather: true           # contrastive negatives from the global batch under multi-GPU
+  norm_pix: true         # MAE target: per-patch normalized pixels
+monitor:                 # early stopping
+  metric: val/retrieval/rsum
+  mode: max

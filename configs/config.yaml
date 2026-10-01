@@ -1,0 +1,33 @@
+# Entry config for train.py and evaluate.py. Group files (model/, data/, train/) override these values.
+defaults:
+  - _self_
+  - model: fusion_concat
+  - data: coco
+  - train: default
+  - override hydra/job_logging: none
+  - override hydra/hydra_logging: none
+
+seed: 42
+
+paths:
+  res_dir: res   # one folder per run: res/<wandb.project>/<wandb.group or default>/<time>_<name>/
+
+wandb:
+  enabled: true
+  project: multimae
+  entity: augustoxq
+  group: ""
+  name: ""       # run name; empty = the model config name
+  tags: []
+  notes: ""
+  mode: online   # online | offline | disabled
+
+eval:            # used by evaluate.py
+  run_dir: null  # a res/ run folder; null = zero-shot pretrained backbone
+  split: test
+  output: null   # optional path: also write the metrics to this JSON file
+
+hydra:           # Hydra writes nothing to disk; the run folder under res/ holds config and logs
+  run:
+    dir: .
+  output_subdir: null

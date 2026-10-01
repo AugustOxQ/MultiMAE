@@ -1,0 +1,12 @@
+# Image-only MAE on the CLIP vision tower (debugging and optional comparison).
+defaults:
+  - base
+  - _self_
+
+name: image_mae
+modalities: [image]
+fusion:
+  type: none
+monitor:
+  metric: val/loss
+  mode: min

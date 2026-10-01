@@ -1,0 +1,8 @@
+# Parallel multimodal MAE: contrastive + MAE + MLM, each decoder reads only its own modality.
+defaults:
+  - base
+  - _self_
+
+name: fusion_none
+fusion:
+  type: none

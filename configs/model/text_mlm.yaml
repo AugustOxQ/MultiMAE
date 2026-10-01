@@ -1,0 +1,12 @@
+# Text-only MLM on the CLIP text tower (debugging and optional comparison).
+defaults:
+  - base
+  - _self_
+
+name: text_mlm
+modalities: [text]
+fusion:
+  type: none
+monitor:
+  metric: val/loss
+  mode: min
