@@ -19,6 +19,7 @@ Research lines:
 
 ## Start here
 
+- **Latest report:** the [v1 refactor report](auto/v1/2026-10-01_refactor.md): what v0 got wrong, what v1 changed, how it was verified, and the zero-shot CLIP B/32 known-answer check.
 - **Design of v1:** the [refactor spec](../superpowers/specs/2026-10-01-mmae-refactor-design.md) and its [implementation plan](../superpowers/plans/2026-10-01-mmae-refactor.md).
 
 ## Adding a report
@@ -40,3 +41,4 @@ Research lines:
 
 | Date | Report | What it is |
 |---|---|---|
+| 10-01 | [2026-10-01_refactor](auto/v1/2026-10-01_refactor.md) | v0 problems, the v1 `mmae` rewrite, the 122-test verification and the zero-shot CLIP B/32 check on COCO 5k (i2t R@1 50.14, t2i R@1 30.44) |
