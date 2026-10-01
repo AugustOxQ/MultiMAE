@@ -18,7 +18,9 @@ COCO images and the Karpathy split files are expected at
 - `data.images_dir` (default `/data/SSD/coco/images`)
 - `data.annotations_dir` (default `/data/SSD/coco/annotations`), holding `coco_karpathy_train.json`, `coco_karpathy_val.json` and `coco_karpathy_test.json`
 
-Override the keys on the command line (`data.images_dir=...`). `data=coco_cluster` points both at the cluster nodes' local disk. The val and test files carry five captions per image; they are flattened on the fly.
+Override the keys on the command line (`data.images_dir=...`). `data=coco_cluster` points both at the cluster nodes' local disk.
+
+The val and test files carry five captions per image. Retrieval uses each image with its five captions. For the validation and test losses they are flattened on the fly into caption-major pairs: every image with its first caption, then every image with its second caption, and so on. An unshuffled eval batch of up to 5000 pairs (the number of images) therefore never shows the same image twice, so no caption in it is a false negative for the contrastive loss. `data.limit_val` and `data.limit_test` keep the first N images (N <= 5000) for both: retrieval uses them with five captions, the loss pairs with their first caption.
 
 ## Training
 
@@ -38,6 +40,10 @@ Model configs (`configs/model/`), all built on `base.yaml`:
 | `image_mae` | Image only: MAE on the CLIP vision tower (debugging, comparison). Monitors `val/loss`. |
 | `text_mlm` | Text only: MLM on the CLIP text tower (debugging, comparison). Monitors `val/loss`. |
 
+`model.backbone.pretrained` names the CLIP checkpoint (default `openai/clip-vit-base-patch32`), and the tokenizer and image preprocessing follow it: `model.backbone.processor` defaults to `${.pretrained}`, except that `tiny-random-clip` (a tiny random CLIP for tests and CPU smoke runs) uses B/32's.
+
+The contrastive loss uses CLIP's pretrained, learnable logit scale. After each optimizer step the trainer clamps the parameter to [0, ln 100], as open_clip does, so the scale stays at most 100 without cutting off its gradient; `train/logit_scale` logs the scale.
+
 Launch scripts (both use `accelerate launch` on every visible GPU, or one process without a GPU):
 
 ```bash
@@ -46,7 +52,7 @@ scripts/run_cluster.sh 128 10 "baseline" model=fusion_concat                 # b
 accelerate launch --num_processes 4 --multi_gpu train.py model=fusion_concat # by hand, one node
 ```
 
-Set `CUDA_VISIBLE_DEVICES` to pick GPUs. The two learning rates (`train.lr` 1e-4 for new modules, `train.lr_backbone` 1e-5 for the towers) are untested placeholders.
+The note can be any text, quotes, commas and colons included: the scripts export it as `MMAE_NOTE` and pass `wandb.notes=${oc.env:MMAE_NOTE}`, and it lands in `config.yaml`, `run.json` and wandb. Set `CUDA_VISIBLE_DEVICES` to pick GPUs. The two learning rates (`train.lr` 1e-4 for new modules, `train.lr_backbone` 1e-5 for the towers) are untested placeholders.
 
 ## Evaluation
 
@@ -69,6 +75,10 @@ Known-answer check: zero-shot OpenAI CLIP ViT-B/32 on the COCO 5k Karpathy test 
 | t2i R@5 / R@10 | 55.96 / 66.87 | |
 | rsum | 361.98 | |
 
+## Known limitations
+
+- Validation and test losses (`val/loss*`, `test/loss*`) depend on the number of GPUs. With several processes, Accelerate pads the last eval batch with duplicate pairs (`even_batches`), each rank draws its own eval masks (seed plus rank), and the contrastive negatives come from the global batch, which grows with the GPU count. Compare losses only between runs on the same number of GPUs. Retrieval metrics do not depend on it (the padded duplicates are dropped before the metrics), so neither does model selection for the two-modality configs, which monitor `val/retrieval/rsum`; `image_mae` and `text_mlm` monitor `val/loss`, which does.
+
 ## Outputs
 
 Every training run writes one folder (Hydra writes nothing to disk):
@@ -76,7 +86,7 @@ Every training run writes one folder (Hydra writes nothing to disk):
 ```
 res/<wandb.project>/<wandb.group or default>/<YYYYMMDD_HHMMSS>_<name>/
   config.yaml      resolved config
-  run.json         status, timings, git commit, command, host, wandb id, best epoch, final val/test metrics
+  run.json         status, timings, git commit, command, note, host, wandb id, best epoch, final val/test metrics
   metrics.jsonl    one line per logged step
   train.log        console log of the main process
   error.txt        traceback, only if the run failed
