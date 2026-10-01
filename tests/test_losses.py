@@ -22,10 +22,26 @@ def test_contrastive_matches_reference():
     assert torch.allclose(loss, reference_infonce(image, text, torch.tensor(2.0).exp()), atol=1e-6)
 
 
-def test_contrastive_clamps_logit_scale():
+def test_contrastive_does_not_clamp_logit_scale():
+    """The loss uses exp(logit_scale) as is; the trainer clamps the parameter after each optimizer step
+    (test_trainer.py::test_logit_scale_is_clamped_after_each_step)."""
     image, text = normalized(8, 6, 0), normalized(8, 6, 1)
-    loss = contrastive_loss(image, text, torch.tensor(10.0))  # exp(10) >> 100
-    assert torch.allclose(loss, reference_infonce(image, text, torch.tensor(MAX_LOGIT_SCALE)), atol=1e-5)
+    assert torch.tensor(5.0).exp() > MAX_LOGIT_SCALE
+    loss = contrastive_loss(image, text, torch.tensor(5.0))
+    assert torch.allclose(loss, reference_infonce(image, text, torch.tensor(5.0).exp()), atol=1e-5)
+
+
+CLIP_LOGIT_SCALE = 4.605170249938965  # openai/clip-vit-base-patch32's pretrained value (float32 of log 100)
+
+
+def test_logit_scale_gets_a_gradient_at_clips_pretrained_value():
+    """exp(4.605170249938965) is 100.0000076 in float32, so a clamp of exp() at 100 inside the loss would
+    give the parameter a zero gradient from the first step."""
+    image, text = normalized(8, 6, 0), normalized(8, 6, 1)
+    logit_scale = torch.tensor(CLIP_LOGIT_SCALE, requires_grad=True)
+    assert logit_scale.exp() > MAX_LOGIT_SCALE
+    contrastive_loss(image, text, logit_scale).backward()
+    assert logit_scale.grad is not None and logit_scale.grad.abs() > 1e-3, logit_scale.grad
 
 
 def test_contrastive_gather_matches_single_process(tmp_path):

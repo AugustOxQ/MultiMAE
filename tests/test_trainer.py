@@ -1,4 +1,5 @@
 import hashlib
+import json
 import math
 
 import pytest
@@ -8,6 +9,7 @@ from accelerate.state import AcceleratorState
 
 from helpers import compose_cfg
 from mmae.engine.trainer import EarlyStopper, Trainer, warmup_cosine
+from mmae.losses import MAX_LOGIT_SCALE
 from mmae.utils.logging import MetricLogger
 from mmae.utils.run import Run
 
@@ -86,6 +88,23 @@ def test_evaluate_reports_losses_and_retrieval(tmp_path, fake_coco, accelerator)
     assert first == second  # masks are reseeded for every evaluation
     assert all(math.isfinite(v) for v in first.values())
     assert trainer.model.training
+
+
+def test_logit_scale_is_clamped_after_each_step(tmp_path, fake_coco, accelerator):
+    """The parameter is clamped to [0, log 100] after an optimizer step (open_clip), so the logged
+    train/logit_scale is the scale the loss used, never above 100."""
+    cfg = tiny_cfg(tmp_path, fake_coco)
+    with Run(cfg) as run:
+        trainer = Trainer(cfg, accelerator, run, MetricLogger(run))
+        logit_scale = trainer.accelerator.unwrap_model(trainer.model).logit_scale
+        with torch.no_grad():
+            logit_scale.fill_(6.0)  # exp(6) = 403
+        trainer.train_epoch(1)
+        path = run.path / "metrics.jsonl"
+    assert trainer.global_step > 0
+    assert logit_scale <= torch.tensor(math.log(MAX_LOGIT_SCALE), dtype=logit_scale.dtype), logit_scale.item()
+    logged = [json.loads(line)["metrics"]["train/logit_scale"] for line in path.read_text().splitlines()]
+    assert logged and all(value <= MAX_LOGIT_SCALE + 1e-3 for value in logged), logged
 
 
 def test_too_small_training_set_fails_clearly(tmp_path, fake_coco, accelerator):

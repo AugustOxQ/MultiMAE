@@ -6,7 +6,10 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch.distributed.nn.functional import all_gather
 
-MAX_LOGIT_SCALE = 100.0  # CLIP clamps exp(logit_scale) at 100
+# Upper bound on exp(logit_scale). The trainer clamps the parameter to [0, log(MAX_LOGIT_SCALE)] after each
+# optimizer step, as open_clip does. Clamping exp() inside the loss instead would zero the gradient from the
+# first step: CLIP's pretrained logit_scale, 4.605170249938965, exponentiates to just above 100.
+MAX_LOGIT_SCALE = 100.0
 
 
 def _world_size() -> int:
@@ -20,9 +23,10 @@ def contrastive_loss(
 
     With `gather` and more than one process, each rank scores its local rows against the global batch
     (open_clip's local-loss formulation); gradients flow back through the gather. Every rank must have
-    the same local batch size.
+    the same local batch size. The scale is exp(logit_scale), unclamped: the trainer bounds the parameter
+    itself after each optimizer step (MAX_LOGIT_SCALE).
     """
-    scale = logit_scale.float().exp().clamp(max=MAX_LOGIT_SCALE)
+    scale = logit_scale.float().exp()
     image_emb, text_emb = image_emb.float(), text_emb.float()
     batch = image_emb.shape[0]
     if gather and _world_size() > 1:

@@ -18,6 +18,7 @@ from transformers.masking_utils import create_causal_mask
 # A random tiny CLIP with CLIP's real vocabulary, special tokens and image size, so it works with the
 # real tokenizer and preprocessing. Used by tests and CPU smoke runs.
 TINY_CLIP = "tiny-random-clip"
+TINY_CLIP_PROCESSOR = "openai/clip-vit-base-patch32"  # the tiny CLIP has no processor; it uses B/32's
 POOLINGS = ("native", "mean")
 
 
@@ -44,6 +45,13 @@ def tiny_clip_config() -> CLIPConfig:
         ),
         projection_dim=24,
     )
+
+
+def processor_name(backbone_cfg) -> str:
+    """Tokenizer and image processor for a `model.backbone` config: `processor`, which defaults to
+    `pretrained` in configs/model/base.yaml, with the tiny random CLIP mapped to B/32's."""
+    name = str(backbone_cfg.processor)
+    return TINY_CLIP_PROCESSOR if name == TINY_CLIP else name
 
 
 def load_clip(pretrained: str) -> CLIPModel:

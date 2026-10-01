@@ -14,7 +14,9 @@ from tqdm.auto import tqdm
 
 from mmae.data import CocoPairs, CocoRetrieval, Collator, build_image_transform
 from mmae.engine.retrieval import evaluate_retrieval
+from mmae.losses import MAX_LOGIT_SCALE
 from mmae.models import MultiMAE
+from mmae.models.backbones import processor_name
 from mmae.utils.logging import MetricLogger
 from mmae.utils.run import Run
 
@@ -67,8 +69,9 @@ class Trainer:
         self.cfg, self.accelerator, self.run, self.metric_logger = cfg, accelerator, run, metric_logger
         tcfg, dcfg, mcfg = cfg.train, cfg.data, cfg.model
         self.two_modalities = set(mcfg.modalities) == {"image", "text"}
-        self.transform = build_image_transform(mcfg.backbone.processor)
-        self.collator = Collator(mcfg.backbone.processor, dcfg.max_text_len)
+        processor = processor_name(mcfg.backbone)
+        self.transform = build_image_transform(processor)
+        self.collator = Collator(processor, dcfg.max_text_len)
 
         model = MultiMAE(mcfg, max_text_len=dcfg.max_text_len)
         train_set = CocoPairs(dcfg.images_dir, dcfg.annotations_dir, "train", self.transform, dcfg.limit_train)
@@ -132,6 +135,14 @@ class Trainer:
         metrics["epoch"] = epoch
         self.metric_logger.log(metrics, step=self.global_step)
 
+    def _clamp_logit_scale(self) -> None:
+        """Keep exp(logit_scale) in [1, MAX_LOGIT_SCALE] by clamping the parameter after an optimizer step
+        (open_clip's approach), so its gradient is never cut off at the bound."""
+        logit_scale = self.accelerator.unwrap_model(self.model).logit_scale
+        if logit_scale is not None:
+            with torch.no_grad():
+                logit_scale.clamp_(0, math.log(MAX_LOGIT_SCALE))
+
     def train_epoch(self, epoch: int) -> None:
         self.model.train()
         tcfg = self.cfg.train
@@ -146,6 +157,8 @@ class Trainer:
                     self.accelerator.clip_grad_norm_(self.model.parameters(), tcfg.grad_clip)
                 self.optimizer.step()
                 self.optimizer.zero_grad(set_to_none=True)
+                if self.accelerator.sync_gradients:
+                    self._clamp_logit_scale()
             for key, value in out.items():
                 sums[key] = sums.get(key, 0.0) + value.detach().float().item()
             count += 1

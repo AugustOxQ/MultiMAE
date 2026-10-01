@@ -4,7 +4,7 @@ modalities: [image, text]
 backbone:
   type: hf_clip
   pretrained: openai/clip-vit-base-patch32   # or tiny-random-clip for tests and CPU smoke runs
-  processor: openai/clip-vit-base-patch32    # tokenizer and image preprocessing
+  processor: ${.pretrained}   # tokenizer and image preprocessing: the checkpoint's own (tiny-random-clip uses B/32's)
 freeze_backbones: false
 pooling: native          # native: CLIP's CLS/EOS pooling + pretrained projections; mean: mean pool + new projection
 masking:

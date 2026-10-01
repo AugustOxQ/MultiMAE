@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader
 from mmae.data import CocoRetrieval, Collator, build_image_transform
 from mmae.engine.retrieval import evaluate_retrieval
 from mmae.models import MultiMAE
+from mmae.models.backbones import processor_name
 from mmae.utils.logging import setup_logging
 from mmae.utils.run import update_run_json
 
@@ -48,14 +49,14 @@ def main(cfg: DictConfig) -> None:
     else:
         log.info("zero-shot evaluation of %s", model_cfg.backbone.pretrained)
 
-    data = cfg.data
+    data, processor = cfg.data, processor_name(model_cfg.backbone)
     dataset = CocoRetrieval(
-        data.images_dir, data.annotations_dir, split, build_image_transform(model_cfg.backbone.processor),
+        data.images_dir, data.annotations_dir, split, build_image_transform(processor),
         data.limit_val if split == "val" else data.limit_test,
     )
     loader = DataLoader(
         dataset, batch_size=cfg.train.eval_batch_size, shuffle=False, num_workers=cfg.train.num_workers,
-        collate_fn=Collator(model_cfg.backbone.processor, max_text_len).retrieval,
+        collate_fn=Collator(processor, max_text_len).retrieval,
     )
     model, loader = accelerator.prepare(model, loader)
     metrics = evaluate_retrieval(model, loader, accelerator)
