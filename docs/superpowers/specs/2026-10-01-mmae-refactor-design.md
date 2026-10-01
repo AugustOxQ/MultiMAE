@@ -56,7 +56,7 @@ Removed from the tree (kept in `legacy-v0`): `src/`, `main_*.py`, the v0 configs
 - **`CocoPairs(split)`**: one (image, caption) pair per item. `train` reads `coco_karpathy_train.json`. `val` and `test` flatten the 5-caption files `coco_karpathy_{val,test}.json` on the fly, so the derived `*_one_caption.json` files and the conversion notebook are no longer needed.
 - **`CocoRetrieval(split)`**: one item per image with its 5 captions, from `coco_karpathy_{val,test}.json`.
 - **Paths** are explicit config keys `data.images_dir` and `data.annotations_dir`. `data/coco_cluster.yaml` overrides them for the cluster.
-- **Images**: PIL, `ImageFile.LOAD_TRUNCATED_IMAGES = True`. Preprocessing is read from the backbone's image processor (for CLIP: resize shortest side to 224 bicubic, center crop 224, CLIP mean/std). No augmentation.
+- **Images**: PIL, `ImageFile.LOAD_TRUNCATED_IMAGES = True`. Preprocessing is OpenAI CLIP's own torchvision pipeline (resize shortest side to 224 bicubic, center crop 224, CLIP mean/std), with the sizes and statistics read from the backbone's image processor config. HF's `CLIPImageProcessor` resizes slightly differently (measured 2026-10-01: mean absolute difference 0.03, up to 2.9 on single pixels); the published zero-shot numbers use OpenAI's pipeline, so we do too. No augmentation.
 - **Text**: tokenized per batch in the collate function with the backbone's tokenizer: `max_length = data.max_text_len` (32), `truncation=True`, `padding="max_length"`, returning `attention_mask` and `special_tokens_mask`. CLIP's tokenizer keeps EOS when truncating; this is tested.
 - **Debug subsets**: `data.limit_train`, `data.limit_val`, `data.limit_test` (null = all) take the first N items (deterministic). They replace the monkeypatching the v0 harnesses needed.
 - No global side effects at import (v0 set `HF_DATASETS_CACHE`).
@@ -174,7 +174,7 @@ Fast unit tests use a tiny randomly initialized CLIP built from a small `CLIPCon
 | Towers | `embed` equals HF `get_*_features`; masked `encode` with nothing masked equals clean `encode` and HF `last_hidden_state`; tiny and real (slow) checkpoint. |
 | Masking | Exact counts; never BOS, EOS or padding; at least one token per caption with maskable tokens; masks differ across samples; reproducible from a generator seed. |
 | Padding | Changing the contents of padded positions does not change any decoder output. |
-| Data | Truncation keeps EOS; val/test flattening yields 5 pairs per image; `limit_*` works; preprocessing matches the HF image processor. |
+| Data | Truncation keeps EOS; val/test flattening yields 5 pairs per image; `limit_*` works; grayscale, CMYK and truncated images load as RGB; preprocessing maps a constant colour to CLIP-normalized values (end-to-end correctness comes from the zero-shot check in section 9). |
 | Losses | Contrastive equals a direct reference implementation; the gathered version under 2 CPU processes (gloo) equals single-process InfoNCE on the concatenated batch; MAE/MLM only count masked positions. |
 | Retrieval | Metrics equal v0's `evalrank` (copied into the test as a reference) on the same random and real embeddings; 1 vs 2 processes identical with a set size not divisible by world size × batch. |
 | Model configs | For each of `fusion_concat`, `fusion_multilearner`, `fusion_none`, `image_mae`, `text_mlm`: finite losses; gradients reach exactly the expected parameters (none in the towers when frozen); a tiny-batch overfit run lowers MAE and MLM losses. |
