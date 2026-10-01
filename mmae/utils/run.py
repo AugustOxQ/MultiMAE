@@ -51,7 +51,21 @@ def _write_json(path: Path, data: dict) -> None:
     tmp.replace(path)
 
 
+def _jsonable(value: Any) -> Any:
+    """Make a metric value JSON-safe; never raises, so logging cannot kill a run."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    try:
+        count = value.numel() if hasattr(value, "numel") else getattr(value, "size", 1)
+        if hasattr(value, "item") and count == 1:
+            return value.item()
+    except Exception:
+        pass
+    return str(value)
+
+
 def update_run_json(run_dir: Path, **fields: Any) -> None:
+    """Merge `fields` into <run_dir>/run.json (created if missing)."""
     path = Path(run_dir) / "run.json"
     info = json.loads(path.read_text()) if path.exists() else {}
     info.update(fields)
@@ -59,6 +73,8 @@ def update_run_json(run_dir: Path, **fields: Any) -> None:
 
 
 class Run:
+    """Context manager owning one run folder; a disabled Run (non-main ranks) does nothing."""
+
     def __init__(self, cfg: DictConfig, enabled: bool = True, now: datetime | None = None) -> None:
         self.cfg = cfg
         self.enabled = enabled
@@ -96,6 +112,7 @@ class Run:
             "tags": list(self.cfg.wandb.tags),
             "path": str(self.path.resolve()),
             "created": datetime.now().isoformat(timespec="seconds"),
+            "started": datetime.now().isoformat(timespec="seconds"),
             "command": " ".join(sys.argv),
             "host": socket.gethostname(),
             "num_processes": int(os.environ.get("WORLD_SIZE", "1")),
@@ -103,6 +120,7 @@ class Run:
         }
         _write_json(self.path / "run.json", self._info)
         self._handler = logging.FileHandler(self.path / "train.log")
+        self._handler._mmae_run = True  # setup_logging re-attaches handlers carrying this mark
         self._handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
         root = logging.getLogger()
         root.addHandler(self._handler)
@@ -113,14 +131,13 @@ class Run:
     def __exit__(self, exc_type, exc, tb) -> bool:
         if not self.enabled:
             return False
-        self._info.update(
+        if exc_type is not None:
+            (self.path / "error.txt").write_text("".join(traceback.format_exception(exc_type, exc, tb)))
+        self.update(
             status="failed" if exc_type else "completed",
             ended=datetime.now().isoformat(timespec="seconds"),
             duration_s=round(time.time() - self._start, 1),
         )
-        if exc_type is not None:
-            (self.path / "error.txt").write_text("".join(traceback.format_exception(exc_type, exc, tb)))
-        _write_json(self.path / "run.json", self._info)
         try:
             self._plot()
         except Exception:  # plotting must never hide the run's own result
@@ -130,18 +147,22 @@ class Run:
         return False  # never swallow the exception
 
     def log_metrics(self, metrics: dict[str, Any], step: int) -> None:
+        """Append one JSON line to metrics.jsonl; non-scalar values are stringified."""
         if not self.enabled:
             return
+        clean = {key: _jsonable(value) for key, value in metrics.items()}
         with open(self.path / "metrics.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps({"step": step, "metrics": metrics}, default=float) + "\n")
+            f.write(json.dumps({"step": step, "metrics": clean}, default=str) + "\n")
 
     def update(self, **fields: Any) -> None:
+        """Merge fields into run.json on disk (keeping fields written by others) and into memory."""
         if not self.enabled:
             return
         self._info.update(fields)
-        _write_json(self.path / "run.json", self._info)
+        update_run_json(self.path, **fields)
 
     def save_checkpoint(self, name: str, obj: Any) -> Path | None:
+        """Save `obj` with torch.save under checkpoints/ (created on first use); None when disabled."""
         if not self.enabled:
             return None
         directory = self.path / "checkpoints"

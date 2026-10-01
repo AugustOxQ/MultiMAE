@@ -13,12 +13,16 @@ QUIET_LOGGERS = ("httpx", "httpcore", "urllib3", "huggingface_hub", "PIL", "matp
 
 
 def setup_logging(is_main: bool) -> None:
+    """Configure console logging; safe to call before or after a Run is entered (its train.log handler is kept)."""
+    kept = [h for h in logging.getLogger().handlers if getattr(h, "_mmae_run", False)]
     logging.basicConfig(
         level=logging.INFO if is_main else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
         force=True,
     )
+    for handler in kept:
+        logging.getLogger().addHandler(handler)
     for name in QUIET_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
 
@@ -39,9 +43,9 @@ class MetricLogger:
             log.info("step %d: %s", step, shown)
 
 
-def init_wandb(cfg: DictConfig, run: Run):
+def init_wandb(cfg: DictConfig, run: Run) -> Any:
     """Start a wandb run (files under the run folder) and record its id/url in run.json; None if disabled."""
-    if not cfg.wandb.enabled:
+    if not run.enabled or not cfg.wandb.enabled:
         return None
     import wandb
 

@@ -84,3 +84,32 @@ def test_list_runs_filters(tmp_path):
     assert "completed" in everything and "failed" in everything
     failed = subprocess.run(script + ["--status", "failed"], capture_output=True, text=True, check=True).stdout
     assert "failed" in failed and "completed" not in failed
+
+
+def test_external_run_json_writes_survive_exit(tmp_path):
+    with Run(cfg_for(tmp_path), now=NOW) as run:
+        update_run_json(run.path, eval={"x": 1})
+        run.update(results={"best_epoch": 2})
+    info = json.loads((run.path / "run.json").read_text())
+    assert info["eval"] == {"x": 1} and info["results"] == {"best_epoch": 2}
+    assert info["status"] == "completed" and "started" in info
+
+
+def test_setup_logging_keeps_run_log(tmp_path):
+    from mmae.utils.logging import setup_logging
+
+    with Run(cfg_for(tmp_path), now=NOW) as run:
+        setup_logging(True)
+        logging.getLogger("mmae.test").info("after setup_logging")
+    assert "after setup_logging" in (run.path / "train.log").read_text()
+
+
+def test_log_metrics_tolerates_non_scalars(tmp_path):
+    import torch
+
+    with Run(cfg_for(tmp_path), now=NOW) as run:
+        run.log_metrics({"a": torch.tensor(2.0), "b": torch.ones(3), "c": None}, step=1)
+    lines = (run.path / "metrics.jsonl").read_text().splitlines()
+    assert len(lines) == 1
+    metrics = json.loads(lines[0])["metrics"]
+    assert metrics["a"] == 2.0 and isinstance(metrics["b"], str) and metrics["c"] is None
