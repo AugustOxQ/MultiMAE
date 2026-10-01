@@ -7,8 +7,9 @@ import torch.nn.functional as F
 from torch.distributed.nn.functional import all_gather
 
 # Upper bound on exp(logit_scale). The trainer clamps the parameter to [0, log(MAX_LOGIT_SCALE)] after each
-# optimizer step, as open_clip does. Clamping exp() inside the loss instead would zero the gradient from the
-# first step: CLIP's pretrained logit_scale, 4.605170249938965, exponentiates to just above 100.
+# optimizer step, as open_clip does. Clamping exp() inside the loss instead would lose the gradient: CLIP's
+# pretrained logit_scale (4.605170249938965) exponentiates to 100.0000076 on CPU, so it is zero from the first
+# step; on CUDA it is exactly 100.0, so it is lost once the parameter drifts above ln 100 and never returns.
 MAX_LOGIT_SCALE = 100.0
 
 

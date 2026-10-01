@@ -191,8 +191,9 @@ def test_text_padding_reaches_no_real_position(name, tokenizer, monkeypatch):
     1. Garbage token ids at padded positions (attention_mask unchanged) enter the fused memory there, yet
        every decoder output at a real position and every loss stay bit-identical: the fusion and both
        decoders get the text padding as a memory mask.
-    2. Changing the text decoder's queries at positions padded in every row leaves its outputs at real
-       positions bit-identical: the decoder gets the padding as a query (self-attention) mask too.
+    2. Perturbing the text decoder's queries with random noise at positions padded in every row moves its
+       outputs there by a clear margin yet leaves its outputs at real positions bit-identical: the decoder
+       gets the padding as a query (self-attention) mask too.
     """
     model = tiny_model(name).eval()
     _, run = recorder(model, monkeypatch)
@@ -215,11 +216,13 @@ def test_text_padding_reaches_no_real_position(name, tokenizer, monkeypatch):
 
     all_padded = ~real.any(dim=0)
     assert all_padded.sum() >= 8
+    g = torch.Generator().manual_seed(1)
     with torch.no_grad():
-        model.text_decoder.queries[all_padded] += 1.0
-        model.text_decoder.pos_embed[all_padded] -= 1.0
+        noise = torch.randn(int(all_padded.sum()), model.text_decoder.queries.shape[1], generator=g)
+        model.text_decoder.queries[all_padded] += noise
     out, losses, _ = run(batch)
-    assert not torch.equal(out["text_decoder"][:, all_padded], base["text_decoder"][:, all_padded])
+    moved = (out["text_decoder"][:, all_padded] - base["text_decoder"][:, all_padded]).abs().max()
+    assert moved > 1e-2, moved  # the perturbation really reaches the padded queries
     assert torch.equal(out["text_decoder"][real], base["text_decoder"][real])
     assert torch.equal(losses["loss_mlm"], base_losses["loss_mlm"])
 
