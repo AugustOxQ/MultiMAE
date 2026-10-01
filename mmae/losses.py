@@ -32,9 +32,10 @@ def contrastive_loss(
     else:
         all_image, all_text, offset = image_emb, text_emb, 0
     labels = torch.arange(batch, device=image_emb.device) + offset
-    logits_image = scale * image_emb @ all_text.T
-    logits_text = scale * text_emb @ all_image.T
-    return 0.5 * (F.cross_entropy(logits_image, labels) + F.cross_entropy(logits_text, labels))
+    with torch.autocast(device_type=image_emb.device.type, enabled=False):  # autocast would recast the matmul to bf16
+        logits_image = scale * image_emb @ all_text.T
+        logits_text = scale * text_emb @ all_image.T
+        return 0.5 * (F.cross_entropy(logits_image, labels) + F.cross_entropy(logits_text, labels))
 
 
 def patchify(images: torch.Tensor, patch_size: int) -> torch.Tensor:

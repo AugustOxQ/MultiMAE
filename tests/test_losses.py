@@ -99,3 +99,27 @@ def test_losses_return_float32_for_bf16_inputs():
     assert mae_loss(pred, torch.randn(2, 3, 64, 64), torch.ones(2, 4, dtype=torch.bool), 32).dtype == torch.float32
     mask = torch.ones(2, 5, dtype=torch.bool)
     assert mlm_loss(torch.randn(2, 5, 11).bfloat16(), torch.zeros(2, 5, dtype=torch.long), mask).dtype == torch.float32
+
+
+def test_losses_are_fp32_under_autocast():
+    image, text = normalized(16, 32, 0), normalized(16, 32, 1)
+    scale = torch.tensor(100.0).log()
+    plain = contrastive_loss(image, text, scale)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        auto = contrastive_loss(image, text, scale)
+    assert auto.dtype == torch.float32
+    assert torch.allclose(auto, plain, atol=1e-6), (auto.item(), plain.item())
+
+    images, pred = torch.randn(2, 3, 64, 64), torch.randn(2, 4, 3072)
+    mask = torch.tensor([[True, False, True, False], [False, True, False, True]])
+    plain = mae_loss(pred, images, mask, 32)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        auto = mae_loss(pred, images, mask, 32)
+    assert torch.allclose(auto, plain, atol=1e-6), (auto.item(), plain.item())
+
+    logits, ids = torch.randn(2, 5, 11), torch.randint(0, 11, (2, 5))
+    tmask = torch.tensor([[False, True, False, True, False], [True, False, False, True, False]])
+    plain = mlm_loss(logits, ids, tmask)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        auto = mlm_loss(logits, ids, tmask)
+    assert torch.allclose(auto, plain, atol=1e-6), (auto.item(), plain.item())
