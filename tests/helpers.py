@@ -1,4 +1,5 @@
 """Shared test helpers (importable because pytest puts tests/ on sys.path)."""
+import json
 import os
 import socket
 import subprocess
@@ -7,6 +8,7 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
+from PIL import Image
 
 REPO = Path(__file__).resolve().parents[1]
 CONFIG_DIR = str(REPO / "configs")
@@ -62,3 +64,40 @@ def make_batch(tokenizer, batch_size: int = 4, max_len: int = 32, captions: list
         "attention_mask": enc["attention_mask"],
         "special_tokens_mask": enc["special_tokens_mask"],
     }
+
+
+def make_fake_coco(root: Path) -> tuple[Path, Path]:
+    """A tiny COCO-like tree: 8 train images (2 captions each), 6 val and 6 test images.
+
+    Includes the oddities real COCO has: a grayscale image, a CMYK image, a truncated JPEG and an
+    image with 6 captions.
+    """
+    images_dir, annotations_dir = root / "images", root / "annotations"
+    (images_dir / "train").mkdir(parents=True)
+    (images_dir / "val").mkdir()
+    annotations_dir.mkdir()
+    g = torch.Generator().manual_seed(0)
+
+    def save(rel: str, mode: str = "RGB") -> str:
+        pixels = (torch.rand(3, 120, 160, generator=g) * 255).byte().permute(1, 2, 0).numpy()
+        Image.fromarray(pixels, "RGB").convert(mode).save(images_dir / rel, "JPEG")
+        return rel
+
+    train = []
+    for i in range(8):
+        rel = save(f"train/{i}.jpg", "L" if i == 1 else ("CMYK" if i == 2 else "RGB"))
+        train += [{"image": rel, "caption": f"train caption {i} {k}", "image_id": i} for k in range(2)]
+    truncated = images_dir / "train" / "3.jpg"
+    truncated.write_bytes(truncated.read_bytes()[: int(truncated.stat().st_size * 0.7)])
+
+    def split(name: str) -> list[dict]:
+        items = []
+        for i in range(6):
+            rel = save(f"val/{name}_{i}.jpg")
+            n = 6 if i == 0 else 5
+            items.append({"image": rel, "caption": [f"{name} {i} caption {k}" for k in range(n)]})
+        return items
+
+    for name, items in (("train", train), ("val", split("val")), ("test", split("test"))):
+        (annotations_dir / f"coco_karpathy_{name}.json").write_text(json.dumps(items))
+    return images_dir, annotations_dir
