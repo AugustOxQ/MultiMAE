@@ -101,3 +101,20 @@ def make_fake_coco(root: Path) -> tuple[Path, Path]:
     for name, items in (("train", train), ("val", split("val")), ("test", split("test"))):
         (annotations_dir / f"coco_karpathy_{name}.json").write_text(json.dumps(items))
     return images_dir, annotations_dir
+
+
+def run_train(cwd: Path, fake_coco, *overrides: str, nproc: int = 1, script: str = "train.py") -> subprocess.CompletedProcess:
+    """Run train.py (or evaluate.py) on the fake COCO with the tiny CLIP on CPU, from `cwd`."""
+    images_dir, annotations_dir = fake_coco
+    args = [
+        f"data.images_dir={images_dir}", f"data.annotations_dir={annotations_dir}",
+        "model.backbone.pretrained=tiny-random-clip", "train=debug", "train.num_workers=0",
+        f"paths.res_dir={cwd / 'res'}", *overrides,
+    ]
+    env = {**os.environ, "CUDA_VISIBLE_DEVICES": "", "ACCELERATE_USE_CPU": "1", "WANDB_MODE": "disabled"}
+    if nproc == 1:
+        cmd = [sys.executable, str(REPO / script), *args]
+    else:
+        cmd = [sys.executable, "-m", "torch.distributed.run", "--nproc_per_node", str(nproc),
+               "--master_port", str(free_port()), str(REPO / script), *args]
+    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=1200)

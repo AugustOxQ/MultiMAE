@@ -1,0 +1,7 @@
+# COCO on the cluster nodes' local disk.
+defaults:
+  - coco
+  - _self_
+
+images_dir: /local/wding/Dataset/coco/images
+annotations_dir: /local/wding/Dataset/coco/annotations

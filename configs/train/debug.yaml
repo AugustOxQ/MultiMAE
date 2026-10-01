@@ -1,0 +1,26 @@
+# @package _global_
+# Tiny, fast run: 1 epoch on a few hundred COCO items, wandb off, no checkpoint.
+# This file replaces train/default.yaml, so it repeats every train key; keep them in sync.
+train:
+  epochs: 1
+  batch_size: 8
+  eval_batch_size: 16
+  lr: 1.0e-4
+  lr_backbone: 1.0e-5
+  weight_decay: 0.05
+  warmup_steps: 2
+  grad_clip: 1.0
+  grad_accum: 1
+  precision: "no"
+  eval_every: 1
+  patience: 5
+  min_delta: 1.0e-4
+  log_every: 2
+  num_workers: 2
+  save: none
+data:
+  limit_train: 256
+  limit_val: 80
+  limit_test: 80
+wandb:
+  enabled: false
