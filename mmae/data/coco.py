@@ -30,9 +30,23 @@ def load_image(path: Path) -> Image.Image:
         return image.convert("RGB")
 
 
+def check_captions(items: list[dict]) -> None:
+    short = [item["image"] for item in items if len(item["caption"]) < CAPTIONS_PER_IMAGE]
+    if short:
+        raise ValueError(f"{len(short)} images have fewer than {CAPTIONS_PER_IMAGE} captions, e.g. {short[0]}")
+
+
 class CocoPairs(Dataset):
     """One (image, caption) pair per item. train has one caption per entry; val and test are
-    flattened from their 5-caption files, so no derived *_one_caption.json files are needed."""
+    flattened from their 5-caption files (no derived *_one_caption.json files needed).
+
+    val and test are caption-major: every image with its first caption, then every image with its
+    second caption, and so on. Consecutive pairs (an unshuffled eval batch of at most as many pairs as
+    there are images) therefore show distinct images, so no caption is a false negative in the
+    contrastive loss. `limit` keeps the first N pairs: for val and test with N up to the number of
+    images, that is the first N images with their first caption (the images CocoRetrieval's `limit`
+    keeps).
+    """
 
     def __init__(
         self,
@@ -46,7 +60,8 @@ class CocoPairs(Dataset):
         if split == "train":
             self.pairs = [(item["image"], item["caption"]) for item in items]
         else:
-            self.pairs = [(item["image"], c) for item in items for c in item["caption"][:CAPTIONS_PER_IMAGE]]
+            check_captions(items)
+            self.pairs = [(item["image"], item["caption"][c]) for c in range(CAPTIONS_PER_IMAGE) for item in items]
         self.pairs = self.pairs[:limit]
         self.images_dir = Path(images_dir)
         self.transform = transform
@@ -60,7 +75,7 @@ class CocoPairs(Dataset):
 
 
 class CocoRetrieval(Dataset):
-    """One item per image with its first 5 captions (Karpathy val/test)."""
+    """One item per image with its first 5 captions (Karpathy val/test); `limit` keeps the first N images."""
 
     def __init__(
         self,
@@ -73,9 +88,7 @@ class CocoRetrieval(Dataset):
         if split == "train":
             raise ValueError("retrieval sets are 'val' and 'test'")
         items = read_split(annotations_dir, split)
-        short = [item["image"] for item in items if len(item["caption"]) < CAPTIONS_PER_IMAGE]
-        if short:
-            raise ValueError(f"{len(short)} images have fewer than {CAPTIONS_PER_IMAGE} captions, e.g. {short[0]}")
+        check_captions(items)
         self.items = [(item["image"], item["caption"][:CAPTIONS_PER_IMAGE]) for item in items][:limit]
         self.images_dir = Path(images_dir)
         self.transform = transform

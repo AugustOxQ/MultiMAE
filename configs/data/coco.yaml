@@ -1,6 +1,6 @@
 images_dir: /data/SSD/coco/images
 annotations_dir: /data/SSD/coco/annotations   # coco_karpathy_{train,val,test}.json
 max_text_len: 32
-limit_train: null   # first N items of each split (null = all); for debug runs
-limit_val: null
-limit_test: null
+limit_train: null   # first N train pairs (null = all); for debug runs
+limit_val: null     # first N val/test images (N <= 5000): retrieval uses them with 5 captions each and the
+limit_test: null    # loss pairs with their first caption (pairs are caption-major), so both see the same images
