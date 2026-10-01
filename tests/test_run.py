@@ -19,7 +19,7 @@ def cfg_for(tmp_path, *overrides):
 
 
 def test_run_folder_layout_and_lifecycle(tmp_path):
-    cfg = cfg_for(tmp_path, "wandb.group=ablation")
+    cfg = cfg_for(tmp_path, "wandb.group=ablation", 'wandb.notes="it\'s a note"')
     with Run(cfg, now=NOW) as run:
         assert run.path == tmp_path / "res" / "multimae" / "ablation" / "20261001_120000_fusion_concat"
         assert json.loads((run.path / "run.json").read_text())["status"] == "running"
@@ -32,6 +32,7 @@ def test_run_folder_layout_and_lifecycle(tmp_path):
         run.update(results={"best_epoch": 1})
     info = json.loads((run.path / "run.json").read_text())
     assert info["status"] == "completed" and info["results"] == {"best_epoch": 1}
+    assert info["notes"] == cfg.wandb.notes == "it's a note"
     assert {"commit", "dirty"} <= set(info["git"]) and info["duration_s"] >= 0
     assert OmegaConf.load(run.path / "config.yaml") == OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
     lines = [json.loads(line) for line in (run.path / "metrics.jsonl").read_text().splitlines()]

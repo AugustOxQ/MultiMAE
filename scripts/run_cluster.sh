@@ -9,6 +9,9 @@ if [ $# -lt 3 ]; then
 fi
 BATCH_SIZE=$1 EPOCHS=$2 NOTE=$3
 shift 3
+# The note reaches the config through the environment, so any text (quotes, commas, colons, '=', '${')
+# arrives verbatim instead of going through Hydra's override parser.
+export MMAE_NOTE="${NOTE}"
 
 if [ -n "${CUDA_VISIBLE_DEVICES-}" ]; then
   IFS=',' read -r -a gpus <<< "${CUDA_VISIBLE_DEVICES}"
@@ -22,4 +25,4 @@ MULTI=()
 echo "Launching on ${NUM_PROCS} process(es)"
 accelerate launch --num_processes "${NUM_PROCS}" --num_machines 1 --mixed_precision no --dynamo_backend no \
   "${MULTI[@]}" train.py data=coco_cluster "train.batch_size=${BATCH_SIZE}" "train.epochs=${EPOCHS}" \
-  "wandb.notes='${NOTE}'" "wandb.tags=[cluster]" "$@"
+  'wandb.notes=${oc.env:MMAE_NOTE}' "wandb.tags=[cluster]" "$@"

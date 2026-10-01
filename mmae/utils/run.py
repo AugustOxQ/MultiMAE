@@ -110,6 +110,7 @@ class Run:
             "model": self.cfg.model.name,
             "group": self.cfg.wandb.group or "default",
             "tags": list(self.cfg.wandb.tags),
+            "notes": self.cfg.wandb.notes,  # the launch scripts pass it via ${oc.env:MMAE_NOTE}, so `command` lacks it
             "path": str(self.path.resolve()),
             "created": datetime.now().isoformat(timespec="seconds"),
             "started": datetime.now().isoformat(timespec="seconds"),

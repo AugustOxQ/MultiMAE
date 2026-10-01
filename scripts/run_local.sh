@@ -19,8 +19,11 @@ fi
 
 NOTE=${1:-local}
 shift || true
+# The note reaches the config through the environment, so any text (quotes, commas, colons, '=', '${')
+# arrives verbatim instead of going through Hydra's override parser.
+export MMAE_NOTE="${NOTE}"
 MULTI=()
 [ "${NUM_PROCS}" -gt 1 ] && MULTI=(--multi_gpu)
 echo "Launching on ${NUM_PROCS} process(es)"
 accelerate launch --num_processes "${NUM_PROCS}" --num_machines 1 --mixed_precision no --dynamo_backend no \
-  "${MULTI[@]}" train.py "wandb.notes='${NOTE}'" "wandb.tags=[local]" "$@"
+  "${MULTI[@]}" train.py 'wandb.notes=${oc.env:MMAE_NOTE}' "wandb.tags=[local]" "$@"
