@@ -2,6 +2,7 @@ import pytest
 import torch
 
 from helpers import MODEL_NAMES, compose_cfg, make_batch
+from mmae.losses import mae_loss, mlm_loss
 from mmae.models import MultiMAE
 from mmae.models.backbones import TINY_CLIP
 
@@ -99,16 +100,15 @@ def test_multilearner_needs_both_modalities():
             tiny_model(name, "model.fusion.type=multilearner")
 
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
-def test_decoders_see_only_visible_inputs(name, tokenizer, monkeypatch):
-    """Changing masked content leaves the decoder outputs bit-identical; changing visible content moves them.
+def recorder(model: MultiMAE, monkeypatch):
+    """Record the masks forward draws and capture the fusion output, the decoder outputs and the losses.
 
-    Masks are recorded by wrapping random_patch_mask / random_token_mask in the model module, and every
-    forward is preceded by the same manual_seed, so all runs draw the same masks.
+    Masks are recorded by wrapping random_patch_mask / random_token_mask in the model module. run(batch)
+    seeds the RNG before the forward pass, so every call draws the same masks. Returns (masks, run), where
+    run(batch) -> (decoder outputs by decoder name, losses, fusion output).
     """
     import mmae.models.model as model_module
 
-    model = tiny_model(name).eval()
     masks = {}
     for attr, key in (("random_patch_mask", "patch"), ("random_token_mask", "token")):
         original = getattr(model_module, attr)
@@ -123,18 +123,38 @@ def test_decoders_see_only_visible_inputs(name, tokenizer, monkeypatch):
     for dec in ("image_decoder", "text_decoder"):
         if hasattr(model, dec):
             getattr(model, dec).register_forward_hook(lambda m, i, o, _k=dec: captured.__setitem__(_k, o.detach().clone()))
+    model.fusion.register_forward_hook(lambda m, i, o: captured.__setitem__("fusion", o))
 
     def run(batch):
         torch.manual_seed(123)
         captured.clear()
         with torch.no_grad():
-            model(batch)
-        return dict(captured)
+            losses = model(batch)
+        fused = captured.pop("fusion")
+        return dict(captured), losses, fused
 
+    return masks, run
+
+
+@pytest.mark.parametrize("name", MODEL_NAMES)
+def test_decoders_see_only_visible_inputs(name, tokenizer, monkeypatch):
+    """Changing masked content leaves the decoder outputs bit-identical; changing visible content moves them.
+    The MAE and MLM losses are exactly mae_loss / mlm_loss of the decoder outputs over the recorded masks."""
+    model = tiny_model(name).eval()
+    masks, run = recorder(model, monkeypatch)
     batch = make_batch(tokenizer)
-    base = run(batch)
+    base, losses, _ = run(batch)
     patch_mask, token_mask = masks.get("patch"), masks.get("token")
-    assert base and run(batch).keys() == base.keys() and all(torch.equal(base[k], run(batch)[k]) for k in base)
+    again = run(batch)[0]
+    assert base and again.keys() == base.keys() and all(torch.equal(base[k], again[k]) for k in base)
+
+    # the losses score exactly the masked positions of the decoder outputs
+    if model.use_image:
+        expected = mae_loss(base["image_decoder"], batch["pixel_values"], patch_mask, model.vision.patch_size, model.norm_pix)
+        assert torch.equal(losses["loss_mae"], expected), (losses["loss_mae"], expected)
+    if model.use_text:
+        expected = mlm_loss(base["text_decoder"], batch["input_ids"], token_mask)
+        assert torch.equal(losses["loss_mlm"], expected), (losses["loss_mlm"], expected)
 
     ps = model.vision.patch_size if model.use_image else None
     grid = 224 // ps if ps else None
@@ -157,11 +177,51 @@ def test_decoders_see_only_visible_inputs(name, tokenizer, monkeypatch):
             new["input_ids"] = torch.where(region, random_ids, batch["input_ids"])
         return new
 
-    masked_changed = run(changed(True))
-    visible_changed = run(changed(False))
+    masked_changed = run(changed(True))[0]
+    visible_changed = run(changed(False))[0]
     for key in base:
         assert torch.equal(base[key], masked_changed[key]), f"{key} depends on masked content"
         assert not torch.equal(base[key], visible_changed[key]), f"{key} ignores visible content"
+
+
+@pytest.mark.parametrize("name", [n for n in MODEL_NAMES if n != "image_mae"])
+def test_text_padding_reaches_no_real_position(name, tokenizer, monkeypatch):
+    """Padded text positions reach neither decoder at real positions nor any loss.
+
+    1. Garbage token ids at padded positions (attention_mask unchanged) enter the fused memory there, yet
+       every decoder output at a real position and every loss stay bit-identical: the fusion and both
+       decoders get the text padding as a memory mask.
+    2. Changing the text decoder's queries at positions padded in every row leaves its outputs at real
+       positions bit-identical: the decoder gets the padding as a query (self-attention) mask too.
+    """
+    model = tiny_model(name).eval()
+    _, run = recorder(model, monkeypatch)
+    batch = make_batch(tokenizer)
+    real = batch["attention_mask"].bool()
+    assert (~real).any(dim=1).all()  # every caption is padded
+    base, base_losses, base_fused = run(batch)
+
+    garbage = dict(batch, input_ids=torch.where(real, batch["input_ids"], torch.randint(1000, 40000, real.shape)))
+    out, losses, fused = run(garbage)
+    pad_memory = torch.cat([torch.zeros_like(base_fused.text_padding[:, : -real.shape[1]]), ~real], dim=1)
+    assert torch.equal(base_fused.text_padding, pad_memory)
+    assert not torch.equal(base_fused.text_memory[pad_memory], fused.text_memory[pad_memory])  # garbage got in
+    assert torch.equal(out["text_decoder"][real], base["text_decoder"][real])
+    if "image_decoder" in base:
+        assert torch.equal(out["image_decoder"], base["image_decoder"])
+    assert losses.keys() == base_losses.keys()
+    for key in base_losses:
+        assert torch.equal(losses[key], base_losses[key]), key
+
+    all_padded = ~real.any(dim=0)
+    assert all_padded.sum() >= 8
+    with torch.no_grad():
+        model.text_decoder.queries[all_padded] += 1.0
+        model.text_decoder.pos_embed[all_padded] -= 1.0
+    out, losses, _ = run(batch)
+    assert not torch.equal(out["text_decoder"][:, all_padded], base["text_decoder"][:, all_padded])
+    assert torch.equal(out["text_decoder"][real], base["text_decoder"][real])
+    assert torch.equal(losses["loss_mlm"], base_losses["loss_mlm"])
 
 
 def test_empty_caption_in_batch_is_finite(tokenizer):
