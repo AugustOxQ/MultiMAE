@@ -1,26 +1,19 @@
-from setuptools import setup, find_packages
 from pathlib import Path
 
+from setuptools import find_packages, setup
 
-def read_requirements(req_path: str):
-    path = Path(__file__).parent / req_path
-    if not path.exists():
-        return []
-    requirements = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        requirements.append(line)
-    return requirements
+
+def read_requirements(name: str) -> list[str]:
+    lines = (Path(__file__).parent / name).read_text(encoding="utf-8").splitlines()
+    return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
 
 
 setup(
-    name="multi-mae",
-    version="0.1.0",
-    description="MultiMAE package with MAE model, hooks, metrics and utils",
-    packages=find_packages(),  # this will include 'src' and 'src.*' packages
-    include_package_data=True,
+    name="mmae",
+    version="1.0.0",
+    description="Multimodal masked autoencoder (fusion MAE) on CLIP towers",
+    packages=find_packages(include=["mmae", "mmae.*"]),
     install_requires=read_requirements("requirements.txt"),
+    extras_require={"dev": ["pytest>=8"]},
     python_requires=">=3.10",
 )

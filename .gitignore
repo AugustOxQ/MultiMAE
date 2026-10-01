@@ -154,14 +154,14 @@ dmypy.json
 *.json
 
 # Folder
-data/
+/data/
 wandb/
-other/
-out/
-output/
-outputs/
-notebooks/
-res/
+/other/
+/out/
+/output/
+/outputs/
+/notebooks/
+/res/
 
 # Claude
 .claude/

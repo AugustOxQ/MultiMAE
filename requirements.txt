@@ -1,29 +1,13 @@
-# --------- pytorch --------- #
-torch
-timm
-datasets
-torchvision
-transformers
-huggingface_hub
-accelerate
-
-# --------- ML --------- #
-einops
-matplotlib
-scikit-learn
-numpy
-pandas
-seaborn
-ipykernel
-jupyter
-
-# --------- configs ---------#
-hydra-core
-omegaconf
-wandb
-
-# --------- utils ---------#
-tqdm
-Pillow
-
-# --------- others --------- #
+# torch/torchvision: install the CUDA 13.0 build first:
+#   pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu130
+torch==2.11.0
+torchvision==0.26.0
+transformers==5.6.2
+accelerate==1.13.0
+hydra-core==1.3.2
+omegaconf==2.3.0
+wandb==0.30.0
+pillow==12.3.0
+tqdm==4.70.1
+matplotlib==3.11.2
+numpy==2.2.6
