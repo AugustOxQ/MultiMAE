@@ -32,7 +32,13 @@ def test_cluster_data_config_points_at_the_node():
     assert set(cluster.data) == set(local.data)  # coco_cluster.yaml repeats every data key
     assert cluster.data.images_dir == "/local/wding/Dataset/coco/images"
     assert cluster.data.annotations_dir == "/local/wding/Dataset/coco/annotations"
+    assert cluster.data.pm_dir == "/local/wding/Dataset/coco/annotations/eccv_caption"
+    assert local.data.pm_dir == "/data/SSD/coco/annotations/eccv_caption"
     assert cluster.data.max_text_len == local.data.max_text_len
     assert cluster.paths.res_dir == "/local/wding/res/MultiMAE/coco"
     debug = compose_cfg("data=coco_cluster", "train=debug")
     assert debug.data.limit_train == 256 and debug.paths.res_dir == "/local/wding/res/MultiMAE/coco"
+
+
+def test_extended_metrics_on_by_default():
+    assert compose_cfg().eval.extended_metrics is True

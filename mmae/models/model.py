@@ -4,6 +4,8 @@ forward(batch) returns every loss, so the training loop and DDP see one ordinary
   1. clean pass (both modalities only): contrastive loss on the towers' joint-space embeddings;
   2. masked pass: mask patches and tokens, encode the visible inputs, fuse, decode, and score
      MAE on masked patches and MLM on masked tokens.
+With reconstruction false (the contrastive baseline) only step 1 runs, and the projections, fusion and
+decoders are not built.
 """
 from __future__ import annotations
 
@@ -33,6 +35,10 @@ class MultiMAE(nn.Module):
         if cfg.fusion.type == "multilearner" and len(modalities) < 2:
             raise ValueError("multilearner fusion needs both modalities")
         self.has_contrastive = self.use_image and self.use_text
+        # .get: run configs saved before the flag existed have no key and mean the full model
+        self.reconstruction = bool(cfg.get("reconstruction", True))
+        if not self.reconstruction and not self.has_contrastive:
+            raise ValueError("reconstruction=false (contrastive only) needs both modalities")
         self.image_ratio = float(cfg.masking.image_ratio)
         self.text_ratio = float(cfg.masking.text_ratio)
         self.loss_weights = {k: float(v) for k, v in cfg.loss.weights.items()}
@@ -46,20 +52,23 @@ class MultiMAE(nn.Module):
         self.logit_scale = towers.logit_scale if self.has_contrastive else None
         if self.use_image:
             self.vision = towers.vision
-            self.image_proj = nn.Linear(self.vision.hidden_size, dim)
-            self.image_decoder = QueryDecoder(
-                self.vision.num_patches, dim, self.vision.patch_size**2 * 3,
-                depth=dec.depth, heads=dec.heads, dropout=dec.dropout,
-            )
+            if self.reconstruction:
+                self.image_proj = nn.Linear(self.vision.hidden_size, dim)
+                self.image_decoder = QueryDecoder(
+                    self.vision.num_patches, dim, self.vision.patch_size**2 * 3,
+                    depth=dec.depth, heads=dec.heads, dropout=dec.dropout,
+                )
         if self.use_text:
             if max_text_len > towers.text.max_positions:
                 raise ValueError(f"max_text_len {max_text_len} exceeds the text tower's {towers.text.max_positions}")
             self.text = towers.text
-            self.text_proj = nn.Linear(self.text.hidden_size, dim)
-            self.text_decoder = QueryDecoder(
-                max_text_len, dim, self.text.vocab_size, depth=dec.depth, heads=dec.heads, dropout=dec.dropout
-            )
-        self.fusion = build_fusion(cfg.fusion)
+            if self.reconstruction:
+                self.text_proj = nn.Linear(self.text.hidden_size, dim)
+                self.text_decoder = QueryDecoder(
+                    max_text_len, dim, self.text.vocab_size, depth=dec.depth, heads=dec.heads, dropout=dec.dropout
+                )
+        if self.reconstruction:
+            self.fusion = build_fusion(cfg.fusion)
 
         for tower in self.towers():
             # The native contrastive head is unused without the contrastive loss or under mean pooling,
@@ -71,6 +80,8 @@ class MultiMAE(nn.Module):
             if not self.has_contrastive and tower.mean_projection is not None:
                 for param in tower.mean_projection.parameters():
                     param.requires_grad = False
+            if not self.reconstruction and hasattr(tower, "mask_embedding"):
+                tower.mask_embedding.requires_grad = False  # only the masked pass uses it
             if cfg.freeze_backbones:
                 for param in tower.pretrained_parameters():
                     param.requires_grad = False
@@ -94,6 +105,10 @@ class MultiMAE(nn.Module):
             losses["contrastive"] = contrastive_loss(
                 self.embed_image(images), self.embed_text(input_ids, attention_mask), self.logit_scale, self.gather
             )
+
+        if not self.reconstruction:
+            return {"loss": self.loss_weights["contrastive"] * losses["contrastive"],
+                    "loss_contrastive": losses["contrastive"]}
 
         image_tokens = text_tokens = text_padding = None
         if self.use_image:

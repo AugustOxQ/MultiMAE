@@ -2,6 +2,8 @@
 
   python evaluate.py eval.run_dir=res/multimae/default/20261001_120000_fusion_concat   # a trained run
   python evaluate.py model=fusion_concat eval.split=test                               # zero-shot CLIP
+
+On the full COCO test split, eval.extended_metrics adds ECCV Caption, CxC, COCO 1K/5K and PMRP (mmae.engine.eccv).
 """
 import json
 import logging
@@ -15,7 +17,8 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from mmae.data import CocoRetrieval, Collator, build_image_transform
-from mmae.engine.retrieval import evaluate_retrieval
+from mmae.engine.eccv import build_extended_metrics
+from mmae.engine.retrieval import encode_retrieval_set, retrieval_metrics
 from mmae.models import MultiMAE
 from mmae.models.backbones import processor_name
 from mmae.utils.logging import setup_logging
@@ -41,6 +44,10 @@ def main(cfg: DictConfig) -> None:
     if set(model_cfg.modalities) != {"image", "text"}:
         raise SystemExit(f"retrieval needs a model with both modalities; {model_cfg.name} has {list(model_cfg.modalities)}")
 
+    # Main process only (all processes hold the same gathered embeddings); built before the model so a
+    # misconfiguration fails fast.
+    extended = build_extended_metrics(cfg, split, two_modalities=True) if accelerator.is_main_process else None
+
     model = MultiMAE(model_cfg, max_text_len=max_text_len)
     if run_dir is not None:
         checkpoint = torch.load(run_dir / "checkpoints" / "best.pt", map_location="cpu")
@@ -59,15 +66,20 @@ def main(cfg: DictConfig) -> None:
         collate_fn=Collator(processor, max_text_len).retrieval,
     )
     model, loader = accelerator.prepare(model, loader)
-    metrics = evaluate_retrieval(model, loader, accelerator)
+    images, captions = encode_retrieval_set(model, loader, accelerator)
+    metrics = retrieval_metrics(images, captions)
     if accelerator.is_main_process:
+        if extended is not None:
+            metrics.update(extended(images, captions))
         log.info("%s retrieval on %d images: %s", split, len(dataset),
                  ", ".join(f"{k}={v:.2f}" for k, v in metrics.items()))
         if run_dir is not None:
             info = json.loads((run_dir / "run.json").read_text())
             update_run_json(run_dir, eval={**info.get("eval", {}), split: metrics})
         if cfg.eval.output:
-            Path(cfg.eval.output).write_text(json.dumps(metrics, indent=2))
+            output = Path(cfg.eval.output)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps(metrics, indent=2))
     accelerator.end_training()
 
 

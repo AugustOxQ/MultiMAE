@@ -11,3 +11,6 @@ pillow==12.3.0
 tqdm==4.70.1
 matplotlib==3.11.2
 numpy==2.2.6
+# extended COCO test metrics (mmae/engine/eccv.py); ujson loads its ground truth faster and silences its warning
+eccv_caption==0.1.0
+ujson==6.0.0

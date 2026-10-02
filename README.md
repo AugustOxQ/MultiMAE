@@ -37,6 +37,7 @@ Model configs (`configs/model/`), all built on `base.yaml`:
 | `fusion_concat` | Both modalities; the image and text tokens are concatenated (optionally through `fusion.depth` transformer layers) and both decoders read the fused sequence. Default. |
 | `fusion_multilearner` | Both modalities; concatenation followed by an image learner, a text learner and a joint learner, each decoder reading its own MLP of own plus joint tokens. |
 | `fusion_none` | Both modalities, no fusion: parallel contrastive, MAE and MLM, each decoder reads only its own modality. |
+| `contrastive` | Baseline: the same CLIP fine-tune with the contrastive loss alone (`reconstruction: false`: no masked pass, fusion, projections or decoders). |
 | `image_mae` | Image only: MAE on the CLIP vision tower (debugging, comparison). Monitors `val/loss`. |
 | `text_mlm` | Text only: MLM on the CLIP text tower (debugging, comparison). Monitors `val/loss`. |
 
@@ -63,7 +64,16 @@ python evaluate.py eval.run_dir=res/multimae/default/<run folder>   # a trained 
 python evaluate.py model=fusion_concat                              # zero-shot pretrained CLIP, no run folder
 ```
 
-`eval.split` is `test` by default (`val` is also accepted); `eval.output=<path.json>` also writes the metrics to a file.
+`eval.split` is `test` by default (`val` is also accepted); `eval.output=<path.json>` also writes the metrics to a file. `scripts/run_eval.sh [overrides]` runs `evaluate.py data=coco_cluster` on a cluster node.
+
+On the full COCO 5k test split, both `evaluate.py` and the test at the end of training add metrics that count more than the one paired item as correct (`eval.extended_metrics`, `mmae/engine/eccv.py`, computed with the `eccv_caption` package of Chun et al., ECCV 2022):
+
+- `eccv/*`: ECCV Caption mAP@R, R-Precision and R@1, on its machine-and-human-verified extra positives;
+- `cxc/*`: CrissCrossed Captions R@1/5/10;
+- `coco1k/*`: COCO 1K R@1/5/10 (mean of 5 folds);
+- `pmrp/*`: Plausible Match R-Precision, the ECCV Caption paper's version (positives share the image's COCO object classes, R capped at 50). It needs the PM files in `data.pm_dir` (`/data/SSD/coco/annotations/eccv_caption`, from the ECCV Caption Google Drive); null skips it.
+
+Each comes per direction (`i2t_*`, `t2i_*`) and as the mean of the two, as in the paper's Table 4. The COCO test captions are matched to their COCO annotation ids through `captions_val2014.json` in `data.annotations_dir`.
 
 Known-answer check: zero-shot OpenAI CLIP ViT-B/32 on the COCO 5k Karpathy test split, measured with this pipeline and published by OpenAI/CLIP:
 

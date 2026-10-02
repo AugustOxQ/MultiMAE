@@ -36,6 +36,16 @@ def check_captions(items: list[dict]) -> None:
         raise ValueError(f"{len(short)} images have fewer than {CAPTIONS_PER_IMAGE} captions, e.g. {short[0]}")
 
 
+def retrieval_items(annotations_dir: str | Path, split: str, limit: int | None = None) -> list[tuple[str, list[str]]]:
+    """(image path, first 5 captions) per image of the val or test split, in file order; `limit` keeps the
+    first N images. CocoRetrieval's items, also used to map the test set to COCO ids (mmae.engine.eccv)."""
+    if split == "train":
+        raise ValueError("retrieval sets are 'val' and 'test'")
+    items = read_split(annotations_dir, split)
+    check_captions(items)
+    return [(item["image"], item["caption"][:CAPTIONS_PER_IMAGE]) for item in items][:limit]
+
+
 class CocoPairs(Dataset):
     """One (image, caption) pair per item. train has one caption per entry; val and test are
     flattened from their 5-caption files (no derived *_one_caption.json files needed).
@@ -85,11 +95,7 @@ class CocoRetrieval(Dataset):
         transform: Callable[[Image.Image], torch.Tensor],
         limit: int | None = None,
     ) -> None:
-        if split == "train":
-            raise ValueError("retrieval sets are 'val' and 'test'")
-        items = read_split(annotations_dir, split)
-        check_captions(items)
-        self.items = [(item["image"], item["caption"][:CAPTIONS_PER_IMAGE]) for item in items][:limit]
+        self.items = retrieval_items(annotations_dir, split, limit)
         self.images_dir = Path(images_dir)
         self.transform = transform
 

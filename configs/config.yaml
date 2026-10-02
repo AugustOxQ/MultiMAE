@@ -26,6 +26,7 @@ eval:            # used by evaluate.py
   run_dir: null  # a res/ run folder; null = zero-shot pretrained backbone
   split: test
   output: null   # optional path: also write the metrics to this JSON file
+  extended_metrics: true   # ECCV Caption, CxC, COCO 1K and PMRP on the full COCO test split (also in train.py's test)
 
 hydra:           # Hydra writes nothing to disk; the run folder under res/ holds config and logs
   run:

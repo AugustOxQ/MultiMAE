@@ -1,5 +1,6 @@
 images_dir: /data/SSD/coco/images
 annotations_dir: /data/SSD/coco/annotations   # coco_karpathy_{train,val,test}.json
+pm_dir: /data/SSD/coco/annotations/eccv_caption   # PMRP ground truth (ECCV Caption's pm_*.json); null skips PMRP
 max_text_len: 32
 limit_train: null   # first N train pairs (null = all); for debug runs
 limit_val: null     # first N val/test images (N <= 5000): retrieval uses them with 5 captions each and the

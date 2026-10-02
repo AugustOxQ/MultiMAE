@@ -26,7 +26,7 @@ def tiny_cfg(tmp_path, fake_coco, *overrides):
     return compose_cfg(
         f"data.images_dir={images_dir}", f"data.annotations_dir={annotations_dir}",
         "model.backbone.pretrained=tiny-random-clip", "train=debug", "train.num_workers=0",
-        f"paths.res_dir={tmp_path / 'res'}", *overrides,
+        f"paths.res_dir={tmp_path / 'res'}", "eval.extended_metrics=false", *overrides,
     )
 
 
@@ -111,3 +111,41 @@ def test_too_small_training_set_fails_clearly(tmp_path, fake_coco, accelerator):
     cfg = tiny_cfg(tmp_path, fake_coco, "data.limit_train=4")
     with Run(cfg, enabled=False) as run, pytest.raises(ValueError, match="no full batch"):
         Trainer(cfg, accelerator, run, MetricLogger(run))
+
+
+def test_extended_metrics_reach_the_test_split_only(tmp_path, fake_coco, accelerator, monkeypatch):
+    """With the gate passing, Trainer.evaluate("test") adds the extended metrics under test/, computed on
+    the gathered test embeddings; val never gets them."""
+    import mmae.engine.trainer as trainer_module
+
+    calls = []
+
+    def fake_build(cfg, split, two_modalities):
+        assert split == "test" and two_modalities
+
+        def extended(images, captions):
+            calls.append((images.shape, captions.shape))
+            return {"eccv/map_at_r": 12.5, "pmrp/i2t": 40.0}
+
+        return extended
+
+    monkeypatch.setattr(trainer_module, "build_extended_metrics", fake_build)
+    cfg = tiny_cfg(tmp_path, fake_coco, "eval.extended_metrics=true")
+    with Run(cfg, enabled=False) as run:
+        trainer = Trainer(cfg, accelerator, run, MetricLogger(run))
+        val, test = trainer.evaluate("val"), trainer.evaluate("test")
+    assert not any(k.startswith(("val/eccv", "val/pmrp")) for k in val)
+    assert test["test/eccv/map_at_r"] == 12.5 and test["test/pmrp/i2t"] == 40.0
+    assert "test/retrieval/rsum" in test
+    assert len(calls) == 1 and calls[0][0][0] == 6 and calls[0][1][:2] == (6, 5)  # 6 test images, 5 captions each
+
+
+@pytest.mark.parametrize("limit_test", ["null", "3"])
+def test_extended_metrics_skipped_on_fake_coco(tmp_path, fake_coco, accelerator, limit_test):
+    """Switched on, they still skip the fake COCO's 6-image test split, and any limit_test."""
+    cfg = tiny_cfg(tmp_path, fake_coco, "eval.extended_metrics=true", f"data.limit_test={limit_test}")
+    with Run(cfg, enabled=False) as run:
+        trainer = Trainer(cfg, accelerator, run, MetricLogger(run))
+        test = trainer.evaluate("test")
+    assert trainer.extended_metrics is None
+    assert "test/retrieval/rsum" in test and not any(k.startswith(("test/eccv", "test/pmrp", "test/coco1k")) for k in test)

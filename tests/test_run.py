@@ -114,3 +114,35 @@ def test_log_metrics_tolerates_non_scalars(tmp_path):
     assert len(lines) == 1
     metrics = json.loads(lines[0])["metrics"]
     assert metrics["a"] == 2.0 and isinstance(metrics["b"], str) and metrics["c"] is None
+
+
+def _capture_wandb_tags(tmp_path, monkeypatch, job_tag, *overrides):
+    import types
+
+    from mmae.utils.logging import init_wandb
+
+    seen = {}
+
+    def fake_init(**kwargs):
+        seen.update(kwargs)
+        return types.SimpleNamespace(id="id1", url="http://w/1")
+
+    monkeypatch.setitem(sys.modules, "wandb", types.SimpleNamespace(init=fake_init))
+    if job_tag is None:
+        monkeypatch.delenv("CLUSTER_RUN_TAG", raising=False)
+    else:
+        monkeypatch.setenv("CLUSTER_RUN_TAG", job_tag)
+    cfg = compose_cfg(f"paths.res_dir={tmp_path / 'res'}", "wandb.enabled=true", "wandb.mode=disabled", *overrides)
+    with Run(cfg, now=NOW) as run:
+        init_wandb(cfg, run)
+    return seen["tags"]
+
+
+def test_wandb_tags_carry_cluster_job_tag(tmp_path, monkeypatch):
+    base = _capture_wandb_tags(tmp_path / "a", monkeypatch, None, "wandb.tags=[cluster]")
+    assert base == ["cluster"]
+    assert _capture_wandb_tags(tmp_path / "b", monkeypatch, "20261002-015611-2056ea5", "wandb.tags=[cluster]") == [
+        "cluster", "20261002-015611-2056ea5"]
+    assert _capture_wandb_tags(tmp_path / "c", monkeypatch, "cluster", "wandb.tags=[cluster]") == ["cluster"]
+    assert _capture_wandb_tags(tmp_path / "d", monkeypatch, "t1", "wandb.tags=[]") == ["t1"]
+    assert _capture_wandb_tags(tmp_path / "e", monkeypatch, "", "wandb.tags=[]") is None

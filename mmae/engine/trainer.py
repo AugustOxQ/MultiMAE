@@ -13,7 +13,8 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 
 from mmae.data import CocoPairs, CocoRetrieval, Collator, build_image_transform
-from mmae.engine.retrieval import evaluate_retrieval
+from mmae.engine.eccv import build_extended_metrics
+from mmae.engine.retrieval import encode_retrieval_set, retrieval_metrics
 from mmae.losses import MAX_LOGIT_SCALE
 from mmae.models import MultiMAE
 from mmae.models.backbones import processor_name
@@ -91,6 +92,12 @@ class Trainer:
         )
         self.eval_loaders: dict[str, EvalLoaders] = {}
         self.global_step = 0
+        # ECCV Caption, CxC, COCO 1K and PMRP on the test split, on the main process only: every process holds
+        # the same gathered embeddings, nothing after the test is a collective, and the PM ground truth takes
+        # about 1 GB of RAM per process. Built here so a misconfigured run fails before training.
+        self.extended_metrics = (
+            build_extended_metrics(cfg, "test", self.two_modalities) if accelerator.is_main_process else None
+        )
 
     def _loader(self, dataset: Dataset, batch_size: int, shuffle: bool, drop_last: bool, collate) -> DataLoader:
         workers = int(self.cfg.train.num_workers)
@@ -174,7 +181,8 @@ class Trainer:
     @torch.no_grad()
     def evaluate(self, split: str) -> dict[str, float]:
         """Mean losses on the split's pairs (masks reseeded so every call sees the same masks) and, for
-        two-modality models, retrieval metrics. Identical on every process."""
+        two-modality models, retrieval metrics. Identical on every process, except the extended test metrics
+        (test/eccv/..., test/cxc/..., test/coco1k/..., test/coco5k/..., test/pmrp...), main process only."""
         loaders = self._eval_loaders(split)
         self.model.eval()
         sums: dict[str, float] = {}
@@ -188,8 +196,10 @@ class Trainer:
                 count += 1
         metrics = {f"{split}/{k}": v for k, v in self._reduce_means(sums, count).items()}
         if loaders.retrieval is not None:
-            retrieval = evaluate_retrieval(self.model, loaders.retrieval, self.accelerator)
-            metrics.update({f"{split}/retrieval/{k}": v for k, v in retrieval.items()})
+            images, captions = encode_retrieval_set(self.model, loaders.retrieval, self.accelerator)
+            metrics.update({f"{split}/retrieval/{k}": v for k, v in retrieval_metrics(images, captions).items()})
+            if split == "test" and self.extended_metrics is not None:
+                metrics.update({f"{split}/{k}": v for k, v in self.extended_metrics(images, captions).items()})
         self.model.train()
         return metrics
 

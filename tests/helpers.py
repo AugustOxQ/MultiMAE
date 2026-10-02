@@ -32,7 +32,7 @@ def run_ddp_worker(command: str, out_dir: Path, nproc: int = 2, *args: str) -> s
     return subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=600)
 
 
-MODEL_NAMES = ["fusion_concat", "fusion_multilearner", "fusion_none", "image_mae", "text_mlm"]
+MODEL_NAMES = ["fusion_concat", "fusion_multilearner", "fusion_none", "contrastive", "image_mae", "text_mlm"]
 CAPTIONS = [
     "a dog running on the beach",
     "two people riding horses",
@@ -104,12 +104,15 @@ def make_fake_coco(root: Path) -> tuple[Path, Path]:
 
 
 def run_train(cwd: Path, fake_coco, *overrides: str, nproc: int = 1, script: str = "train.py") -> subprocess.CompletedProcess:
-    """Run train.py (or evaluate.py) on the fake COCO with the tiny CLIP on CPU, from `cwd`."""
+    """Run train.py (or evaluate.py) on the fake COCO with the tiny CLIP on CPU, from `cwd`.
+
+    Extended test metrics are off explicitly (they need the real COCO test split); tests may override it.
+    """
     images_dir, annotations_dir = fake_coco
     args = [
         f"data.images_dir={images_dir}", f"data.annotations_dir={annotations_dir}",
         "model.backbone.pretrained=tiny-random-clip", "train=debug", "train.num_workers=0",
-        f"paths.res_dir={cwd / 'res'}", *overrides,
+        f"paths.res_dir={cwd / 'res'}", "eval.extended_metrics=false", *overrides,
     ]
     env = {**os.environ, "CUDA_VISIBLE_DEVICES": "", "ACCELERATE_USE_CPU": "1", "WANDB_MODE": "disabled"}
     if nproc == 1:

@@ -39,3 +39,23 @@ def test_launch_scripts_pass_any_note_verbatim(tmp_path, monkeypatch, script, no
     cfg = OmegaConf.to_container(compose_cfg(*overrides), resolve=True)  # what train.py's config.yaml holds
     assert cfg["wandb"]["notes"] == note
     assert cfg["wandb"]["tags"] == (["local"] if script == "run_local.sh" else ["cluster"])
+
+
+def test_run_eval_calls_evaluate_with_cluster_data_and_forwards_overrides(tmp_path):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub = bin_dir / "python"
+    stub.write_text("#!/usr/bin/env bash\nprintf '%s\\0' \"$@\" > \"$FAKE_OUT/args\"\n")
+    stub.chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}", "FAKE_OUT": str(tmp_path)}
+    overrides = ["eval.run_dir=/a/b", "eval.output=/x y/z.json", "wandb.notes=${oc.env:HOME}"]
+    result = subprocess.run(["bash", str(REPO / "scripts" / "run_eval.sh"), *overrides], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    argv = (tmp_path / "args").read_text().split("\0")[:-1]
+    assert argv == ["evaluate.py", "data=coco_cluster", *overrides]
+
+
+def test_run_eval_script_text_avoids_cluster_tool_triggers():
+    text = (REPO / "scripts" / "run_eval.sh").read_text()
+    assert "CLUSTER_DRY_RUN" not in text
+    assert "CUDA_VISIBLE_DEVICES" not in text

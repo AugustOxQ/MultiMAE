@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
@@ -49,12 +50,16 @@ def init_wandb(cfg: DictConfig, run: Run) -> Any:
         return None
     import wandb
 
+    tags = list(cfg.wandb.tags)
+    job_tag = os.environ.get("CLUSTER_RUN_TAG", "").strip()  # set by the cluster-run tool; its watcher finds the run by it
+    if job_tag and job_tag not in tags:
+        tags.append(job_tag)
     wandb_run = wandb.init(
         project=cfg.wandb.project,
         entity=cfg.wandb.entity or None,
         group=cfg.wandb.group or None,
         name=run.name,
-        tags=list(cfg.wandb.tags) or None,
+        tags=tags or None,
         notes=cfg.wandb.notes or None,
         mode=cfg.wandb.mode,
         config=OmegaConf.to_container(cfg, resolve=True),

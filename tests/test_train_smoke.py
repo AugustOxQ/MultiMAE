@@ -27,7 +27,7 @@ def test_train_debug_run_on_cpu(tmp_path, fake_coco, name):
     result = run_train(tmp_path, fake_coco, f"model={name}", "train.save=best")
     assert result.returncode == 0, result.stderr[-5000:]
     run_dir = single_run_dir(tmp_path)
-    check_run(run_dir, two_modalities=name.startswith("fusion"))
+    check_run(run_dir, two_modalities=name.startswith("fusion") or name == "contrastive")
     assert (run_dir / "checkpoints" / "best.pt").exists()
     # Hydra and wandb write nothing outside the run folder
     assert not (tmp_path / "outputs").exists() and not (tmp_path / ".hydra").exists()

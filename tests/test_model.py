@@ -12,6 +12,7 @@ EXPECTED_LOSSES = {
     "fusion_concat": {"loss", "loss_contrastive", "loss_mae", "loss_mlm"},
     "fusion_multilearner": {"loss", "loss_contrastive", "loss_mae", "loss_mlm"},
     "fusion_none": {"loss", "loss_contrastive", "loss_mae", "loss_mlm"},
+    "contrastive": {"loss", "loss_contrastive"},
     "image_mae": {"loss", "loss_mae"},
     "text_mlm": {"loss", "loss_mlm"},
 }
@@ -48,7 +49,7 @@ def test_frozen_backbones_get_no_gradient(name, tokenizer):
     for tower in (model.vision, model.text):
         if tower is not None:
             assert all(not p.requires_grad and p.grad is None for p in tower.pretrained_parameters())
-    if model.text is not None:
+    if model.text is not None and model.reconstruction:
         assert model.text.mask_embedding.grad is not None
     missing = [n for n, p in model.named_parameters() if p.requires_grad and p.grad is None]
     assert not missing, missing
@@ -136,7 +137,7 @@ def recorder(model: MultiMAE, monkeypatch):
     return masks, run
 
 
-@pytest.mark.parametrize("name", MODEL_NAMES)
+@pytest.mark.parametrize("name", [n for n in MODEL_NAMES if n != "contrastive"])  # no masked pass
 def test_decoders_see_only_visible_inputs(name, tokenizer, monkeypatch):
     """Changing masked content leaves the decoder outputs bit-identical; changing visible content moves them.
     The MAE and MLM losses are exactly mae_loss / mlm_loss of the decoder outputs over the recorded masks."""
@@ -184,7 +185,7 @@ def test_decoders_see_only_visible_inputs(name, tokenizer, monkeypatch):
         assert not torch.equal(base[key], visible_changed[key]), f"{key} ignores visible content"
 
 
-@pytest.mark.parametrize("name", [n for n in MODEL_NAMES if n != "image_mae"])
+@pytest.mark.parametrize("name", [n for n in MODEL_NAMES if n not in ("image_mae", "contrastive")])
 def test_text_padding_reaches_no_real_position(name, tokenizer, monkeypatch):
     """Padded text positions reach neither decoder at real positions nor any loss.
 

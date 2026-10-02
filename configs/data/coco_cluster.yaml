@@ -6,6 +6,7 @@
 data:
   images_dir: /local/wding/Dataset/coco/images
   annotations_dir: /local/wding/Dataset/coco/annotations   # coco_karpathy_{train,val,test}.json
+  pm_dir: /local/wding/Dataset/coco/annotations/eccv_caption   # PMRP ground truth (ECCV Caption's pm_*.json); null skips PMRP
   max_text_len: 32
   limit_train: null
   limit_val: null

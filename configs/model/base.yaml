@@ -6,6 +6,7 @@ backbone:
   pretrained: openai/clip-vit-base-patch32   # or tiny-random-clip for tests and CPU smoke runs
   processor: ${.pretrained}   # tokenizer and image preprocessing: the checkpoint's own (tiny-random-clip uses B/32's)
 freeze_backbones: false
+reconstruction: true    # false = contrastive only: no masked pass, fusion, projections or decoders
 pooling: native          # native: CLIP's CLS/EOS pooling + pretrained projections; mean: mean pool + new projection
 masking:
   image_ratio: 0.75

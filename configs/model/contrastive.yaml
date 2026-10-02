@@ -1,0 +1,9 @@
+# Contrastive-only baseline: the same CLIP fine-tune with InfoNCE alone (no masked pass, fusion or decoders).
+defaults:
+  - base
+  - _self_
+
+name: contrastive
+reconstruction: false
+fusion:
+  type: none
