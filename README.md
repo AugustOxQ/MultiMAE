@@ -70,8 +70,8 @@ On the full COCO 5k test split, both `evaluate.py` and the test at the end of tr
 
 - `eccv/*`: ECCV Caption mAP@R, R-Precision and R@1, on its machine-and-human-verified extra positives;
 - `cxc/*`: CrissCrossed Captions R@1/5/10;
-- `coco1k/*`: COCO 1K R@1/5/10 (mean of 5 folds);
-- `pmrp/*`: Plausible Match R-Precision, the ECCV Caption paper's version (positives share the image's COCO object classes, R capped at 50). It needs the PM files in `data.pm_dir` (`/data/SSD/coco/annotations/eccv_caption`, from the ECCV Caption Google Drive); null skips it.
+- `coco1k/*`: COCO 1K R@1/5/10 (mean of 5 folds, each fold fully ranked; the ECCV Caption paper reads its R@5 and R@10 from 5K top-50 lists, which gives lower values, so only R@1 compares with it);
+- `pmrp/*`: Plausible Match R-Precision, the ECCV Caption paper's version: a query's positives are its own pair and the items whose image has the same COCO object classes, and R is capped at 50. The released PM files leave the own pair out, which leaves 1,130 captions with no positive; we add it back, as the paper's Table 4 does, so all 24,760 captions and 4,952 images the files cover are queries (zero-shot CLIP ViT-B/32: 55.31, paper 55.32). It needs the PM files in `data.pm_dir` (`/data/SSD/coco/annotations/eccv_caption`, from the ECCV Caption Google Drive); null skips it.
 
 Each comes per direction (`i2t_*`, `t2i_*`) and as the mean of the two, as in the paper's Table 4. The COCO test captions are matched to their COCO annotation ids through `captions_val2014.json` in `data.annotations_dir`.
 

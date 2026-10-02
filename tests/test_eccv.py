@@ -1,5 +1,7 @@
 """Extended COCO test metrics (mmae.engine.eccv): id mapping, truncated rankings against full rankings on a
-synthetic problem, the gate, and checks against the real annotation files (skipped when they are absent)."""
+synthetic problem, the PMRP ground truth with the own pairs, the gate, and checks against the real
+annotation files (skipped when they are absent)."""
+import copy
 import json
 import logging
 from pathlib import Path
@@ -21,6 +23,7 @@ from mmae.engine.eccv import (
     coco_image_id,
     coco_test_metrics,
     map_coco_ids,
+    pmrp_ground_truth,
 )
 from mmae.engine.retrieval import retrieval_metrics
 
@@ -73,8 +76,11 @@ def test_map_coco_ids_rejects_unmatched_captions(tmp_path, bad):
 def synthetic_problem(seed: int, embeddings: str, n_images: int = 120, k: int = 5, dim: int = 6):
     """Embeddings in dataset order, their COCO-like ids, and a Metrics whose ground truths are replaced by
     synthetic ones shaped like the real ones: COCO folds in a shuffled image order, CxC and ECCV positives
-    beyond the original pairs (ECCV lists longer than 10, one id outside the test set), PM positives
-    without the original pairs, some lists longer than the PMRP cut and some empty."""
+    beyond the original pairs (ECCV lists longer than 10, one id outside the test set), and PM files as the
+    authors' plausible_matching_func.py writes them with omit_orig=True: images with the same class set
+    match, the own pair is left out, so an image with a unique class set has empty t2i lists and no i2t
+    list, images with no class set are not listed, and some i2t lists are longer than the PMRP cut.
+    metrics.pm_with_own_pairs holds the same PM ground truth with the own pairs (omit_orig=False)."""
     rng = np.random.default_rng(seed)
     image_ids = rng.choice(np.arange(100_000, 200_000), n_images, replace=False)
     caption_ids = rng.choice(np.arange(500_000, 900_000), n_images * k, replace=False).reshape(n_images, k)
@@ -115,11 +121,22 @@ def synthetic_problem(seed: int, embeddings: str, n_images: int = 120, k: int = 
         "t2i": {c: [i] + sample(image_ids, rng.integers(0, 13), [i]) for c, i in owner.items() if rng.random() < 0.3},
     }
     next(iter(metrics.eccv_gts["i2t"].values())).append(999_999)  # a positive outside the test set, as in the real file
-    metrics.pm_gts = {
-        "i2t": {i: sample(flat, rng.integers(1, 300), own[i]) for i in own if rng.random() < 0.9},
-        "t2i": {c: sample(image_ids, rng.integers(0, 80), [i]) for c, i in owner.items() if rng.random() < 0.95},
+    class_set = rng.choice(5, n_images, p=[0.4, 0.3, 0.15, 0.1, 0.05])
+    unique = rng.choice(n_images, 4, replace=False)
+    class_set[unique] = 10 + np.arange(4)  # four class sets no other image has
+    listed = rng.random(n_images) < 0.95  # the rest have no object annotation
+    listed[unique] = True
+    match = {int(i): [int(j) for j in image_ids[listed & (class_set == s)]] for i, s, l in zip(image_ids, class_set, listed) if l}
+    metrics.pm_with_own_pairs = {
+        "i2t": {i: [c for j in match[i] for c in own[j]] for i in match},
+        "t2i": {c: match[i] for c, i in owner.items() if i in match},
     }
-    assert any(not p for p in metrics.pm_gts["t2i"].values())  # empty PM lists, as in the real files
+    metrics.pm_gts = {
+        "i2t": {i: [c for c in p if c not in own[i]] for i, p in metrics.pm_with_own_pairs["i2t"].items() if len(match[i]) > 1},
+        "t2i": {c: [i for i in p if i != owner[c]] for c, p in metrics.pm_with_own_pairs["t2i"].items()},
+    }
+    assert sum(not p for p in metrics.pm_gts["t2i"].values()) >= 4 * k  # empty PM lists, as in the real files
+    assert len(metrics.pm_gts["i2t"]) <= len(match) - 4 and len(match) < n_images
     return images, captions, image_ids.astype(np.int64), caption_ids.astype(np.int64), metrics
 
 
@@ -137,11 +154,12 @@ def full_rankings(images, captions, image_ids, caption_ids):
 
 
 def reference_metrics(images, captions, image_ids, caption_ids, metrics, pmrp_max_r):
-    """The package's metrics on full rankings; PMRP as the ECCV Caption paper defines it, R = min(R, cut)."""
+    """The package's metrics on full rankings; PMRP as the ECCV Caption paper computes it: every query of
+    the PM ground truth with its own pair (metrics.pm_with_own_pairs), R = min(R, cut)."""
     full = full_rankings(images, captions, image_ids, caption_ids)
     scores = metrics.compute_all_metrics(full["i2t"], full["t2i"], target_metrics=ALL_TARGETS, Ks=(1, 5, 10))
     scores["pmrp"] = {
-        d: np.mean([rprecision(full[d][q], set(p), min(len(set(p)), pmrp_max_r)) for q, p in metrics.pm_gts[d].items() if p])
+        d: np.mean([rprecision(full[d][q], set(p), min(len(p), pmrp_max_r)) for q, p in metrics.pm_with_own_pairs[d].items()])
         for d in ("i2t", "t2i")
     }
     return eccv._flatten(scores)
@@ -155,8 +173,33 @@ def test_truncated_rankings_give_the_full_ranking_metrics(embeddings, pmrp_max_r
     assert 10 < eccv_max < 50 and max(map(len, metrics.pm_gts["i2t"].values())) > 50  # truncation matters
     expected = reference_metrics(images, captions, image_ids, caption_ids, metrics, pmrp_max_r)
     got = coco_test_metrics(images, captions, image_ids, caption_ids, metrics, pmrp_max_r=pmrp_max_r, chunk=chunk)
-    assert got == expected
+    assert got == pytest.approx(expected, abs=1e-9)  # PMRP averages its queries in another order
     assert 5 < got["coco1k/r1"] < 95 and 5 < got["eccv/map_at_r"] < 95 and 5 < got["pmrp"] < 95  # not degenerate
+
+
+def test_pmrp_ground_truth_adds_the_own_pairs():
+    """PM files as released (own pairs left out): images 1 and 2 share a class set, image 3's is unique
+    (empty t2i lists, no i2t list), image 4 has no object annotation (not listed)."""
+    image_ids = np.array([4, 2, 1, 3])
+    caption_ids = np.array([[40, 41], [20, 21], [10, 11], [30, 31]])
+    pm = {"t2i": {10: [2], 11: [2], 20: [1], 21: [1], 30: [], 31: []}, "i2t": {1: [20, 21], 2: [10, 11]}}
+    released = copy.deepcopy(pm)
+    with_own_pairs = {
+        "t2i": {10: [1, 2], 11: [1, 2], 20: [1, 2], 21: [1, 2], 30: [3], 31: [3]},
+        "i2t": {1: [10, 11, 20, 21], 2: [10, 11, 20, 21], 3: [30, 31]},
+    }
+    assert pmrp_ground_truth(pm, image_ids, caption_ids) == with_own_pairs
+    assert pm == released  # the package's ground truth is not modified
+    assert pmrp_ground_truth(with_own_pairs, image_ids, caption_ids) == with_own_pairs  # omit_orig=False files
+
+
+@pytest.mark.parametrize("pm,message", [
+    ({"t2i": {10: [2], 99: [1]}, "i2t": {}}, "1 PM t2i queries are not test captions, e.g. 99"),
+    ({"t2i": {10: [2], 11: [2]}, "i2t": {1: [20], 2: [10]}}, "1 PM i2t queries are not images of PM t2i queries, e.g. 2"),
+])
+def test_pmrp_ground_truth_rejects_queries_it_cannot_complete(pm, message):
+    with pytest.raises(ValueError, match=message):
+        pmrp_ground_truth(pm, np.array([1, 2]), np.array([[10, 11], [20, 21]]))
 
 
 def test_metric_keys():
@@ -190,8 +233,8 @@ def test_coco_recalls_agree_with_retrieval_metrics():
 
 
 def test_package_pmrp_divides_by_zero_on_empty_positives():
-    """Why queries with no plausible match are left out: the package's R-Precision divides by zero on them
-    (eccv-caption issue #2). If an upgrade changes this, revisit coco_test_metrics."""
+    """Why no PMRP list may be empty (pmrp_ground_truth asserts it): the package's R-Precision divides by
+    zero on one (eccv-caption issue #2), as on the released PM files' 1,130 empty t2i lists."""
     metrics = Metrics()
     metrics.pm_gts = {"i2t": {1: [10]}, "t2i": {10: [1], 11: []}}
     with pytest.raises(ZeroDivisionError):
@@ -276,16 +319,35 @@ def test_real_missing_pm_files_fail_at_build(tmp_path):
 
 @needs_real_coco
 @needs_real_pm
-def test_real_ground_truth_with_random_embeddings(caplog):
-    """End to end on the real ground truth (PM included) with random embeddings: every key, COCO 5K and 1K
-    against retrieval_metrics, and the 1,130 empty PM lists left out."""
+def test_real_pmrp_ground_truth():
+    """The released PM files leave out every own pair: 1,130 captions (of 226 images whose class set no
+    other test image has) have empty t2i lists and those images no i2t list. With the own pairs back, the
+    24,760 listed captions and their 4,952 images are queries, each with its own pair and none empty."""
+    extended = build_extended_metrics(compose_cfg("data.pm_dir=null"), "test", two_modalities=True)
+    pm = Metrics(extra_file_dir=REAL.pm_dir).pm_gts
+    own = dict(zip(extended.image_ids.tolist(), map(set, extended.caption_ids.tolist())))
+    owner = {c: i for i, captions in own.items() for c in captions}
+    assert not any(owner[c] in p for c, p in pm["t2i"].items()) and not any(own[i] & set(p) for i, p in pm["i2t"].items())
+    assert sum(not p for p in pm["t2i"].values()) == 1130 and len(pm["i2t"]) == 4726
+    gt = pmrp_ground_truth(pm, extended.image_ids, extended.caption_ids)
+    assert set(gt["t2i"]) == set(pm["t2i"]) and len(gt["t2i"]) == 24760
+    assert set(gt["i2t"]) == {owner[c] for c in pm["t2i"]} and len(gt["i2t"]) == 4952
+    assert all(set(p) == set(pm["t2i"][c]) | {owner[c]} for c, p in gt["t2i"].items())
+    assert all(set(p) == set(pm["i2t"].get(i, ())) | own[i] for i, p in gt["i2t"].items())
+    assert sum(p == [owner[c]] for c, p in gt["t2i"].items()) == 1130
+    assert sum(set(p) == own[i] for i, p in gt["i2t"].items()) == 226
+
+
+@needs_real_coco
+@needs_real_pm
+def test_real_ground_truth_with_random_embeddings():
+    """End to end on the real ground truth (PM included) with random embeddings: every key, and COCO 5K
+    and 1K against retrieval_metrics."""
     extended = build_extended_metrics(compose_cfg(), "test", two_modalities=True)
     g = torch.Generator().manual_seed(0)
     images = torch.nn.functional.normalize(torch.randn(5000, 64, generator=g), dim=-1)
     captions = torch.nn.functional.normalize(images[:, None] + 0.25 * torch.randn(5000, 5, 64, generator=g), dim=-1)
-    caplog.set_level(logging.INFO, logger="mmae.engine.eccv")
     got = extended(images, captions)
-    assert "left out 0 i2t and 1130 t2i queries" in caplog.text
     assert TABLE4_KEYS | {"pmrp/i2t", "pmrp/t2i", "coco1k/rsum"} <= set(got) and len(got) == 34
     assert all(0.0 <= v <= 100.0 for k, v in got.items() if k != "coco1k/rsum")
     ours = retrieval_metrics(images, captions)

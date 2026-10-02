@@ -10,15 +10,28 @@ reads, cut to what each metric looks at, so no 25,000 x 5,000 ranking is turned 
 - COCO 1K R@K keeps the items of a query's list that are in its fold (the package's 5 folds of
   coco_test_ids: 5,000 captions and their 1,000 images each), then reads the first K. Each query is
   evaluated in exactly one fold (checked), so a second list per query, its top 10 among its own fold's
-  candidates, gives the package the same filtered prefix as the full ranking would.
-- PMRP is the ECCV Caption paper's modified PMRP (Sec. 5, Table 4): plausible matches at zeta = 0 (the
-  PM files) and R = min(#PM positives, 50). The authors' example passes top-50 lists to the package,
-  whose R-Precision then reads min(R, 50) items; we pass the same 50-item prefixes. The PM files list
-  1,130 captions with no plausible match (their image's class set is unique in the test split); the
-  package divides by zero on them (its issue #2), so they are left out, as R-Precision is undefined there.
+  candidates, gives the package the same filtered prefix as the full ranking would. The paper's numbers
+  come from 5K top-50 lists filtered to the fold instead, which can leave fewer than 10 fold items and
+  under-counts its R@5 and R@10 (zero-shot CLIP ViT-B/32 i2t/t2i R@10: 95.00/87.70 there, 95.68/88.74
+  here; R@1 agrees), so only COCO 1K R@1 is comparable with the paper.
+- PMRP is the ECCV Caption paper's modified PMRP (Sec. 5, Table 4): plausible matches at zeta = 0 and
+  R = min(#PM positives, 50). The authors' example passes top-50 lists to the package, whose R-Precision
+  then reads min(R, 50) items; we pass the same 50-item prefixes. The released PM files leave out each
+  query's own pair (the authors' data_tools/plausible_matching_func.py with omit_orig=True): no t2i list
+  holds the caption's image, no i2t list the image's captions, so the 1,130 captions of the 226 images
+  whose COCO class set no other test image has get empty lists and those images have no i2t list. The
+  paper scores with the own pairs in (the function's default, omit_orig=False), and so do we:
+  pmrp_ground_truth adds them back, and every caption the PM files list (24,760) and every image of those
+  captions (4,952) is a query. Zero-shot CLIP ViT-B/32 then gives 55.31 (i2t 59.95, t2i 50.68) against the
+  paper's 55.32; the released lists alone, empty ones left out, gave 51.11.
 
 Rankings sort by similarity with ties in dataset order (a stable sort), so every list is a prefix of the
-full ranking and each fold list is the full ranking restricted to the fold.
+full ranking and each fold list is the full ranking restricted to the fold. mmae.engine.retrieval's
+retrieval_metrics counts ties optimistically instead (rank = 1 + the number of candidates scored strictly
+higher), so coco5k/* can differ slightly from the plain retrieval metrics when two embeddings tie exactly.
+Zero-shot CLIP ViT-B/32 has one such tie: the own caption "A group of chefs preparing food inside of a
+kitchen." of the test image at position 2357 is also a caption of the image at position 1892, which comes
+first, so coco5k/i2t_r1 is 50.10 and retrieval i2t_R1 50.12.
 """
 from __future__ import annotations
 
@@ -117,6 +130,33 @@ def coco_1k_folds(metrics: Metrics, image_ids: np.ndarray, caption_ids: np.ndarr
     return per_image[:, 0].copy(), caption_fold
 
 
+def pmrp_ground_truth(
+    pm_gts: dict[str, dict[int, list[int]]], image_ids: np.ndarray, caption_ids: np.ndarray
+) -> dict[str, dict[int, list[int]]]:
+    """The PMRP queries and positives of the ECCV Caption paper: the PM files' lists plus each query's own pair.
+
+    Queries are every caption with a t2i list (an empty one included) and every image of those captions
+    (one with no i2t list included). A caption's positives are its t2i list and its own image, an image's
+    its i2t list and its own captions, so no list is empty. Captions the PM files do not list (their image
+    has no COCO object annotation) are not queries. image_ids (N,) and caption_ids (N, K) are the test
+    set's COCO ids (map_coco_ids). Raises ValueError for a t2i query that is not a test caption or an i2t
+    query that is not the image of a t2i query.
+    """
+    owner = dict(zip(caption_ids.reshape(-1).tolist(), np.repeat(image_ids, caption_ids.shape[1]).tolist()))
+    own = dict(zip(image_ids.tolist(), caption_ids.tolist()))
+    outside = [c for c in pm_gts["t2i"] if c not in owner]
+    if outside:
+        raise ValueError(f"{len(outside)} PM t2i queries are not test captions, e.g. {outside[0]}")
+    t2i = {c: sorted(set(p) | {owner[c]}) for c, p in pm_gts["t2i"].items()}
+    images = {owner[c] for c in t2i}
+    stray = [i for i in pm_gts["i2t"] if i not in images]
+    if stray:
+        raise ValueError(f"{len(stray)} PM i2t queries are not images of PM t2i queries, e.g. {stray[0]}")
+    i2t = {i: sorted(set(pm_gts["i2t"].get(i, ())) | set(own[i])) for i in image_ids.tolist() if i in images}
+    assert all(t2i.values()) and all(i2t.values()), "an empty PMRP list: the package divides by zero on it"
+    return {"i2t": i2t, "t2i": t2i}
+
+
 def _rank(
     queries: torch.Tensor,
     candidates: torch.Tensor,
@@ -166,8 +206,10 @@ def coco_test_metrics(
     image_ids (N,) and caption_ids (N, K) their COCO ids (map_coco_ids). Keys: eccv/{i2t,t2i}_{map_at_r,
     rprecision,r1}, {cxc,coco1k,coco5k}/{i2t,t2i}_r{1,5,10}, pmrp/{i2t,t2i}, the i2t/t2i means the ECCV
     Caption paper's Table 4 reports (eccv/map_at_r, eccv/rprecision, eccv/r1, cxc/r1, coco1k/r1,
-    coco5k/r1, pmrp) and coco1k/rsum (its RSUM, the six COCO 1K recalls). Raises ValueError unless the ids
-    are the package's test set (check_ids).
+    coco5k/r1, pmrp) and coco1k/rsum, the six COCO 1K recalls summed from exact full rankings within each
+    fold. That is higher than the paper's RSUM, whose R@5 and R@10 come from 5K top-50 lists filtered to
+    the fold, and not comparable with it. Raises ValueError unless the ids are the package's test set
+    (check_ids).
     """
     n, k, dim = caption_emb.shape
     if image_emb.shape != (n, dim) or image_ids.shape != (n,) or caption_ids.shape != (n, k):
@@ -204,11 +246,9 @@ def coco_test_metrics(
     if expected - set(scores):
         raise RuntimeError(f"eccv_caption did not return {sorted(expected - set(scores))}")
     if pm:
-        pm_metrics = copy.copy(metrics)  # shallow: only pm_gts is replaced
-        pm_metrics.pm_gts = {d: {q: p for q, p in metrics.pm_gts[d].items() if p} for d in DIRECTIONS}
-        skipped = {d: len(metrics.pm_gts[d]) - len(pm_metrics.pm_gts[d]) for d in DIRECTIONS}
-        if any(skipped.values()):
-            log.info("PMRP: left out %d i2t and %d t2i queries with no plausible match", skipped["i2t"], skipped["t2i"])
+        # The package's pmrp reads self.pm_gts: a shallow copy carries the ground truth with the own pairs.
+        pm_metrics = copy.copy(metrics)
+        pm_metrics.pm_gts = pmrp_ground_truth(metrics.pm_gts, image_ids, caption_ids)
         retrieved = {d: {q: top[d][q][:pmrp_max_r] for q in pm_metrics.pm_gts[d]} for d in DIRECTIONS}
         scores["pmrp"] = pm_metrics.pmrp(retrieved, "all")
     return _flatten(scores)
