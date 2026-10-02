@@ -24,3 +24,15 @@ def test_processor_follows_pretrained():
     assert processor_name(compose_cfg("model.backbone.pretrained=tiny-random-clip").model.backbone) == CLIP_NAME
     explicit = compose_cfg("model.backbone.pretrained=tiny-random-clip", "model.backbone.processor=openai/clip-vit-base-patch16")
     assert processor_name(explicit.model.backbone) == "openai/clip-vit-base-patch16"
+
+
+def test_cluster_data_config_points_at_the_node():
+    local = compose_cfg()
+    cluster = compose_cfg("data=coco_cluster")
+    assert set(cluster.data) == set(local.data)  # coco_cluster.yaml repeats every data key
+    assert cluster.data.images_dir == "/local/wding/Dataset/coco/images"
+    assert cluster.data.annotations_dir == "/local/wding/Dataset/coco/annotations"
+    assert cluster.data.max_text_len == local.data.max_text_len
+    assert cluster.paths.res_dir == "/local/wding/res/MultiMAE"
+    debug = compose_cfg("data=coco_cluster", "train=debug")
+    assert debug.data.limit_train == 256 and debug.paths.res_dir == "/local/wding/res/MultiMAE"

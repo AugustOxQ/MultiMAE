@@ -1,7 +1,14 @@
-# COCO on the cluster nodes' local disk.
-defaults:
-  - coco
-  - _self_
-
-images_dir: /local/wding/Dataset/coco/images
-annotations_dir: /local/wding/Dataset/coco/annotations
+# @package _global_
+# COCO on the DAS6 cluster nodes, plus the node's results root. Selected with data=coco_cluster
+# (scripts/run_cluster.sh). This file replaces data/coco.yaml, so it repeats every data key: keep them in sync
+# (tests/test_configs.py checks it). The cluster-run skill keeps a shared copy (configs/MultiMAE/data/) that
+# overlays this one on cluster launches.
+data:
+  images_dir: /local/wding/Dataset/coco/images
+  annotations_dir: /local/wding/Dataset/coco/annotations   # coco_karpathy_{train,val,test}.json
+  max_text_len: 32
+  limit_train: null
+  limit_val: null
+  limit_test: null
+paths:
+  res_dir: /local/wding/res/MultiMAE   # runs land in res/<wandb.project>/... under it; cluster pull brings them back
