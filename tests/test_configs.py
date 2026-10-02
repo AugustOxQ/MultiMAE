@@ -33,6 +33,6 @@ def test_cluster_data_config_points_at_the_node():
     assert cluster.data.images_dir == "/local/wding/Dataset/coco/images"
     assert cluster.data.annotations_dir == "/local/wding/Dataset/coco/annotations"
     assert cluster.data.max_text_len == local.data.max_text_len
-    assert cluster.paths.res_dir == "/local/wding/res/MultiMAE"
+    assert cluster.paths.res_dir == "/local/wding/res/MultiMAE/coco"
     debug = compose_cfg("data=coco_cluster", "train=debug")
-    assert debug.data.limit_train == 256 and debug.paths.res_dir == "/local/wding/res/MultiMAE"
+    assert debug.data.limit_train == 256 and debug.paths.res_dir == "/local/wding/res/MultiMAE/coco"

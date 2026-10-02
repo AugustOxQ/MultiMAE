@@ -11,4 +11,4 @@ data:
   limit_val: null
   limit_test: null
 paths:
-  res_dir: /local/wding/res/MultiMAE   # runs land in res/<wandb.project>/... under it; cluster pull brings them back
+  res_dir: /local/wding/res/MultiMAE/coco   # strictly under the cluster profile's RESULTS_REMOTE (/local/wding/res/MultiMAE); cluster pull brings runs back to res/coco/

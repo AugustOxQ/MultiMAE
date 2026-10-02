@@ -18,7 +18,7 @@ COCO images and the Karpathy split files are expected at
 - `data.images_dir` (default `/data/SSD/coco/images`)
 - `data.annotations_dir` (default `/data/SSD/coco/annotations`), holding `coco_karpathy_train.json`, `coco_karpathy_val.json` and `coco_karpathy_test.json`
 
-Override the keys on the command line (`data.images_dir=...`). `data=coco_cluster` points both at the cluster nodes' local disk and also sets `paths.res_dir` to the node's results root (`/local/wding/res/MultiMAE`).
+Override the keys on the command line (`data.images_dir=...`). `data=coco_cluster` points both at the cluster nodes' local disk and also sets `paths.res_dir` to the node's results root (`/local/wding/res/MultiMAE/coco`).
 
 The val and test files carry five captions per image. Retrieval uses each image with its five captions. For the validation and test losses they are flattened on the fly into caption-major pairs: every image with its first caption, then every image with its second caption, and so on. An unshuffled eval batch of up to 5000 pairs (the number of images) therefore never shows the same image twice, so no caption in it is a false negative for the contrastive loss. `data.limit_val` and `data.limit_test` keep the first N images (N <= 5000) for both: retrieval uses them with five captions, the loss pairs with their first caption.
 
