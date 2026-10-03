@@ -14,12 +14,13 @@ reads, cut to what each metric looks at, so no 25,000 x 5,000 ranking is turned 
   come from 5K top-50 lists filtered to the fold instead, which can leave fewer than 10 fold items and
   under-counts its R@5 and R@10 (zero-shot CLIP ViT-B/32 i2t/t2i R@10: 95.00/87.70 there, 95.68/88.74
   here; R@1 agrees), so only COCO 1K R@1 is comparable with the paper.
-- PMRP is the ECCV Caption paper's modified PMRP (Sec. 5, Table 4): plausible matches at zeta = 0 and
+- PMRP is the ECCV Caption paper's modified PMRP (Sec. 5, Table 4): plausible matches (the released lists hold the items whose image's COCO class vector
+  differs from the query image's in at most two classes, zeta <= 2, verified against instances_val2014.json) and
   R = min(#PM positives, 50). The authors' example passes top-50 lists to the package, whose R-Precision
   then reads min(R, 50) items; we pass the same 50-item prefixes. The released PM files leave out each
   query's own pair (the authors' data_tools/plausible_matching_func.py with omit_orig=True): no t2i list
   holds the caption's image, no i2t list the image's captions, so the 1,130 captions of the 226 images
-  whose COCO class set no other test image has get empty lists and those images have no i2t list. The
+  with no other test image within two classes get empty lists and those images have no i2t list. The
   paper scores with the own pairs in (the function's default, omit_orig=False), and so do we:
   pmrp_ground_truth adds them back, and every caption the PM files list (24,760) and every image of those
   captions (4,952) is a query. Zero-shot CLIP ViT-B/32 then gives 55.31 (i2t 59.95, t2i 50.68) against the

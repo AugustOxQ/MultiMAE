@@ -24,8 +24,8 @@ from torch.utils.data import DataLoader  # noqa: E402
 from mmae.data import CocoRetrieval, Collator, build_image_transform  # noqa: E402
 from mmae.data.coco import retrieval_items  # noqa: E402
 from mmae.engine.diagnostics import (  # noqa: E402
-    class_set_groups, count_class_words, drop_words, neighbour_purity, per_query_rprecision, pmrp_rows,
-    similarity_stats,
+    class_set_groups, count_class_words, drop_words, neighbour_purity, normalise_caption,
+    per_query_rprecision, pmrp_rows, similarity_stats,
 )
 from mmae.engine.eccv import build_extended_metrics  # noqa: E402
 from mmae.engine.retrieval import encode_retrieval_set, retrieval_metrics  # noqa: E402
@@ -67,13 +67,18 @@ def probe(model, collator, items, image_emb: torch.Tensor, n_images: int, device
     and t2i R@1 of the shortened caption among all test images."""
     rng = random.Random(0)
     out: dict[str, float] = {}
+    firsts = [normalise_caption(captions[0]) for _, captions in items[:n_images]]
+    if firsts:  # the unshortened baseline over every first caption used, normalised like the shortened texts
+        full_all = embed_texts(model, collator, firsts, device)
+        out["full/t2i_R1"] = 100.0 * (
+            (full_all @ image_emb.T).argmax(dim=1) == torch.arange(len(firsts))).double().mean().item()
     for kind in ("content", "stop"):
         for k in (1, 2):
             rows, short, full = [], [], []
             for row, (_, captions) in enumerate(items[:n_images]):
                 text = drop_words(captions[0], kind, k, rng)
                 if text is not None:
-                    rows.append(row), short.append(text), full.append(captions[0])
+                    rows.append(row), short.append(text), full.append(normalise_caption(captions[0]))
             if not rows:
                 continue
             idx = torch.tensor(rows)
@@ -96,7 +101,7 @@ def encode_run(cfg, diag, name, run_dir, items, out: Path, device) -> tuple[dict
     image_emb, caption_emb = (t.cpu() for t in encode_retrieval_set(model, batches))
     info = {
         "model": kind, "seed": seed,
-        "logit_scale": float(model.logit_scale.exp()) if model.logit_scale is not None else None,
+        "logit_scale": model.logit_scale.detach().exp().item() if model.logit_scale is not None else None,
         "test": retrieval_metrics(image_emb, caption_emb),
         "probe": probe(model, collator, items, image_emb, int(diag.get("probe_captions", 5000)), device),
     }

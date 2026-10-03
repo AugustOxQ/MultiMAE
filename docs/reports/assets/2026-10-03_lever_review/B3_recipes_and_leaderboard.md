@@ -1,5 +1,7 @@
 > Supporting file for docs/reports/auto/v1/2026-10-03_lever_review.md. Phase 2 bibliographies are as written; V1/V2 list the corrections, and the report uses corrected values.
 
+Erratum (2026-10-03): the "zeta=0" readings below describe the paper's text; the released PM files hold zeta <= 2 matches (verified 2026-10-03 against instances_val2014.json).
+
 # B3: CLIP fine-tuning recipes on COCO, and what has moved the polysemy-aware COCO metrics
 
 Theme agent B3, Phase 2 (investigation), written 2026-10-03. Scope: (a) what a strong CLIP fine-tuning recipe on

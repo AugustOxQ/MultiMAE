@@ -25,5 +25,6 @@ def test_diagnose_on_two_tiny_runs(tmp_path, fake_coco):
     assert set(report["runs"]) >= {"zeroshot"} and len(report["runs"]) == 3
     for info in report["runs"].values():
         assert "vwsd/hit1" in info["vwsd"] and "probe" in info
+        assert "full/t2i_R1" in info["probe"]
     assert any("img+contrastive_txt" in key for key in report["swaps"])
     assert len(list((out / "embeddings").glob("*.pt"))) == 3

@@ -1,7 +1,9 @@
 """Stage 0 diagnostics (spec 2026-10-03, section 5) on COCO 5k test embeddings.
 
-Class sets come from the PMRP ground truth (pmrp_ground_truth, zeta = 0): a caption's t2i list holds every test
-image whose COCO object-class set equals that of the caption's image, so images whose lists coincide share a set.
+Class sets come from the PMRP ground truth (pmrp_ground_truth): a caption's t2i list holds every test image whose
+COCO class vector differs from that of the caption's image in at most two classes (zeta <= 2, verified against
+instances_val2014.json), so the lists are symmetric but not transitive. Grouping images by identical PM
+neighbourhood approximates identical class sets: 13 of 44,052 same-group pairs differ in class set.
 """
 from __future__ import annotations
 
@@ -162,9 +164,15 @@ def count_class_words(caption: str) -> int:
     return len(found)
 
 
+def normalise_caption(caption: str) -> str:
+    """The caption with periods turned into spaces and whitespace collapsed: the text drop_words rebuilds, so the
+    unshortened baseline of a probe is normalised the same way."""
+    return " ".join(caption.replace(".", " ").split())
+
+
 def drop_words(caption: str, kind: str, k: int, rng: random.Random) -> str | None:
     """The caption with k random words of `kind` ("content" or "stop") deleted, or None with fewer than k."""
-    words = caption.replace(".", " ").split()
+    words = normalise_caption(caption).split()
     pick = [i for i, w in enumerate(words) if is_content_word(w) == (kind == "content") and w.isalpha()]
     if len(pick) < k:
         return None

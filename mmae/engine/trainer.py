@@ -154,9 +154,25 @@ class Trainer:
 
     def _log_train(self, sums: dict[str, float], count: int, epoch: int) -> None:
         metrics: dict[str, Any] = {f"train/{k}": v for k, v in self._reduce_means(sums, count).items()}
-        for group in self.optimizer.param_groups:
-            key = "train/lr_backbone" if group["name"].startswith("backbone") else "train/lr"
-            metrics.setdefault(key, group["lr"])
+        groups = self.optimizer.param_groups
+        if any(group.get("tower") is not None for group in groups):
+            # split groups: each tower's lr is read from its top layer (the largest layer index)
+            top: dict[str, tuple[int, float]] = {}
+            for group in groups:
+                tower = group.get("tower")
+                if tower is not None:
+                    layer = int(group["name"].split("_layer")[1][:2])
+                    if tower not in top or layer > top[tower][0]:
+                        top[tower] = (layer, group["lr"])
+            for tower, (_, lr) in top.items():
+                metrics[f"train/lr_{tower}"] = lr
+            for group in groups:
+                if group["name"].startswith("head"):
+                    metrics.setdefault("train/lr", group["lr"])
+        else:
+            for group in groups:
+                key = "train/lr_backbone" if group["name"].startswith("backbone") else "train/lr"
+                metrics.setdefault(key, group["lr"])
         logit_scale = self.accelerator.unwrap_model(self.model).logit_scale
         if logit_scale is not None:
             metrics["train/logit_scale"] = logit_scale.exp().item()

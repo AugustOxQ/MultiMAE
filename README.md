@@ -112,7 +112,7 @@ python evaluate.py model=fusion_concat eval.vwsd_dir=/data/SSD/vwsd
 
 ### Stage 0 diagnostics
 
-`scripts/diagnose.py` (cluster wrapper `scripts/run_diagnostics.sh`, which sets `data=coco_cluster`) encodes the COCO 5k test split with every run found under `+diag.runs_root` plus zero-shot CLIP, and writes `+diag.out/diagnostics.json`, `embeddings/` and `per_query.pt`. It reports VWSD, tower swaps (each non-contrastive run's towers are paired with the contrastive run of the same seed), class-set purity, PMRP by query type, similarity statistics and a masked-caption probe. The "class-set groups" come from ECCV Caption's PM lists, which are symmetric but not transitive on the real data, so they approximate identical COCO class sets.
+`scripts/diagnose.py` (cluster wrapper `scripts/run_diagnostics.sh`, which sets `data=coco_cluster`) encodes the COCO 5k test split with every run found under `+diag.runs_root` plus zero-shot CLIP, and writes `+diag.out/diagnostics.json`, `embeddings/` and `per_query.pt`. It reports VWSD, tower swaps (each non-contrastive run's towers are paired with the contrastive run of the same seed), class-set purity, PMRP by query type, similarity statistics and a masked-caption probe. The "class-set groups" come from ECCV Caption's PM lists, which hold the items whose image's COCO class vector differs from the query image's in at most two classes (zeta <= 2, verified against `instances_val2014.json`); images with identical PM neighbourhoods are grouped, which approximates identical class sets (13 of 44,052 same-group pairs differ).
 
 ```bash
 scripts/run_diagnostics.sh +diag.runs_root=<dir> +diag.out=<dir> eval.vwsd_dir=/local/wding/Dataset/vwsd

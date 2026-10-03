@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 from mmae.engine.diagnostics import (
-    class_set_groups, count_class_words, drop_words, neighbour_purity, per_query_rprecision, pmrp_rows,
+    class_set_groups, count_class_words, drop_words, normalise_caption, neighbour_purity, per_query_rprecision, pmrp_rows,
     similarity_stats,
 )
 
@@ -70,3 +70,9 @@ def test_class_words_and_drop_words():
 ])
 def test_count_class_words_counts_distinct_classes(caption, expected):
     assert count_class_words(caption) == expected
+
+
+def test_normalise_caption_matches_the_text_drop_words_rebuilds():
+    assert normalise_caption("A dog.  On the beach.") == "A dog On the beach"
+    caption = "A dog.  On the beach."
+    assert drop_words(caption, "stop", 0, random.Random(0)) == normalise_caption(caption)

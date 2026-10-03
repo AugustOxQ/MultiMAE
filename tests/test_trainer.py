@@ -179,6 +179,24 @@ def test_frozen_vision_warmup(tmp_path, fake_coco, grad_accum):
     AcceleratorState._reset_state(True)
 
 
+def test_split_groups_log_per_tower_lrs(tmp_path, fake_coco, accelerator, monkeypatch):
+    cfg = tiny_cfg(tmp_path, fake_coco, "model=contrastive", "train.epochs=2", "train.freeze_vision_epochs=1",
+                   "train.log_every=1")
+    with Run(cfg, enabled=False) as run:
+        logged = []
+        metric_logger = MetricLogger(run)
+        monkeypatch.setattr(metric_logger, "log", lambda metrics, step=None: logged.append(dict(metrics)))
+        trainer = Trainer(cfg, accelerator, run, metric_logger)
+        trainer.train_epoch(1)
+        trainer.train_epoch(2)
+    train_logs = [m for m in logged if "train/lr" in m or "train/lr_vision" in m or "train/lr_backbone" in m]
+    # the lr is read after the scheduler step, so the first log of epoch 1 still shows the frozen lr
+    first, second = ([m for m in train_logs if m["epoch"] == e][i] for e, i in ((1, 0), (2, 0)))
+    assert "train/lr_backbone" not in first
+    assert first["train/lr_vision"] == 0 and first["train/lr_text"] > 0
+    assert second["train/lr_vision"] > 0
+
+
 def test_default_schedule_keeps_the_legacy_groups(tmp_path, fake_coco, accelerator):
     cfg = tiny_cfg(tmp_path, fake_coco, "model=fusion_concat")
     with Run(cfg, enabled=False) as run:
