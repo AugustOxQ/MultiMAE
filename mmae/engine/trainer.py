@@ -77,7 +77,9 @@ class Trainer:
 
         model = MultiMAE(mcfg, max_text_len=dcfg.max_text_len)
         train_set = CocoPairs(dcfg.images_dir, dcfg.annotations_dir, "train", self.transform, dcfg.limit_train)
-        train_loader = self._loader(train_set, tcfg.batch_size, shuffle=True, drop_last=True, collate=self.collator.pairs)
+        generator = torch.Generator().manual_seed(int(cfg.seed)) if tcfg.get("seeded_sampler", False) else None
+        train_loader = self._loader(train_set, tcfg.batch_size, shuffle=True, drop_last=True,
+                                    collate=self.collator.pairs, generator=generator)
         freeze_epochs = int(tcfg.get("freeze_vision_epochs", 0))
         optimizer = torch.optim.AdamW(model.param_groups(
             tcfg.lr, tcfg.lr_backbone, tcfg.weight_decay, lr_text=tcfg.get("lr_text"),
@@ -116,11 +118,13 @@ class Trainer:
             build_extended_metrics(cfg, "test", self.two_modalities) if accelerator.is_main_process else None
         )
 
-    def _loader(self, dataset: Dataset, batch_size: int, shuffle: bool, drop_last: bool, collate) -> DataLoader:
+    def _loader(self, dataset: Dataset, batch_size: int, shuffle: bool, drop_last: bool, collate,
+                generator: torch.Generator | None = None) -> DataLoader:
         workers = int(self.cfg.train.num_workers)
         return DataLoader(
             dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, collate_fn=collate,
             num_workers=workers, pin_memory=torch.cuda.is_available(), persistent_workers=workers > 0,
+            generator=generator,
         )
 
     def _eval_loaders(self, split: str) -> EvalLoaders:

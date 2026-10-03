@@ -185,3 +185,20 @@ def test_default_schedule_keeps_the_legacy_groups(tmp_path, fake_coco, accelerat
         trainer = Trainer(cfg, accelerator, run, MetricLogger(run))
         names = sorted(g["name"] for g in trainer.optimizer.param_groups)
     assert names == ["backbone_decay", "backbone_no_decay", "head_decay", "head_no_decay"]
+
+
+def _first_epoch_order(tmp_path, fake_coco, accelerator, *overrides):
+    cfg = tiny_cfg(tmp_path, fake_coco, *overrides)
+    torch.manual_seed(cfg.seed)  # as train.py's set_seed
+    with Run(cfg, enabled=False) as run:
+        trainer = Trainer(cfg, accelerator, run, MetricLogger(run))
+        return torch.cat([batch["input_ids"] for batch in trainer.train_loader])
+
+
+def test_seeded_sampler_gives_every_model_the_same_order(tmp_path, fake_coco, accelerator):
+    on = ("train.seeded_sampler=true", "train.batch_size=2")
+    a = _first_epoch_order(tmp_path / "a", fake_coco, accelerator, "model=contrastive", *on)
+    b = _first_epoch_order(tmp_path / "b", fake_coco, accelerator, "model=fusion_multilearner", *on)
+    c = _first_epoch_order(tmp_path / "c", fake_coco, accelerator, "model=contrastive", *on, "seed=7")
+    assert torch.equal(a, b)
+    assert not torch.equal(a, c)

@@ -22,6 +22,7 @@ train:
   lr_vision: null
   layer_decay: 1.0
   freeze_vision_epochs: 0
+  seeded_sampler: false
 data:
   limit_train: 256
   limit_val: 80
