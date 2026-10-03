@@ -112,3 +112,19 @@ def test_real_coco_sizes(transform):
     assert len(CocoRetrieval(root, ann, "test", transform)) == 5000
     image, captions = CocoRetrieval(root, ann, "test", transform)[0]
     assert image.shape == (3, 224, 224) and len(captions) == 5
+
+
+def test_collator_marks_content_tokens(tmp_path):
+    from mmae.data import Collator
+    from helpers import CLIP_NAME
+
+    collator = Collator(CLIP_NAME, 16, content_words=True)
+    batch = collator.tokenize(["a dog is running on the beach .", "the of and"])
+    content = batch["content_tokens_mask"]
+    words = [collator.tokenizer.convert_ids_to_tokens(row) for row in batch["input_ids"].tolist()]
+    marked = [[w for w, c in zip(ws, cs) if c] for ws, cs in zip(words, content.tolist())]
+    assert marked[0] == ["dog</w>", "running</w>", "beach</w>"]
+    assert marked[1] == []
+    assert not (content & ~batch["attention_mask"].bool()).any()
+    assert not (content & batch["special_tokens_mask"].bool()).any()
+    assert "content_tokens_mask" not in Collator(CLIP_NAME, 16).tokenize(["a dog"])

@@ -66,6 +66,15 @@ def make_batch(tokenizer, batch_size: int = 4, max_len: int = 32, captions: list
     }
 
 
+def add_content_mask(batch: dict, tokenizer) -> dict:
+    """The content_tokens_mask a Collator(content_words=True) would add to a make_batch() batch."""
+    from mmae.data.stopwords import content_token_table
+
+    table = content_token_table(tokenizer)
+    content = table[batch["input_ids"]] & batch["attention_mask"].bool() & ~batch["special_tokens_mask"].bool()
+    return {**batch, "content_tokens_mask": content}
+
+
 def make_fake_coco(root: Path) -> tuple[Path, Path]:
     """A tiny COCO-like tree: 8 train images (2 captions each), 6 val and 6 test images.
 

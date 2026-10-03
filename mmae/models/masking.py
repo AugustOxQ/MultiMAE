@@ -39,17 +39,21 @@ def random_token_mask(
     special_tokens_mask: torch.Tensor,
     ratio: float,
     generator: torch.Generator | None = None,
+    allowed: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """Mask `max(1, round(ratio * n))` of the n real, non-special tokens of each caption.
+    """Mask `max(1, round(ratio * n))` tokens of each caption, n = its real, non-special tokens.
 
-    Captions with no maskable token get no mask. Returns (B, T) bool, True where masked.
+    With `allowed` (B, T) bool, the masked tokens are drawn from the allowed ones only (the count is still set by
+    n, capped by the number allowed). Captions with no maskable token get no mask. Returns (B, T) bool.
     """
     if not 0.0 < ratio < 1.0:
         raise ValueError(f"token mask ratio must be in (0, 1), got {ratio}")
-    maskable = attention_mask.bool() & ~special_tokens_mask.bool()
-    n = maskable.sum(dim=1)
+    real = attention_mask.bool() & ~special_tokens_mask.bool()
+    maskable = real if allowed is None else real & allowed.bool()
+    n = real.sum(dim=1)
+    available = maskable.sum(dim=1)
     k = torch.clamp(torch.round(n.float() * ratio), min=1).long()
-    k = torch.where(n > 0, torch.minimum(k, n), torch.zeros_like(k))
+    k = torch.where(available > 0, torch.minimum(k, available), torch.zeros_like(k))
     noise = _uniform(tuple(maskable.shape), maskable.device, generator)
     noise = noise.masked_fill(~maskable, 2.0)  # non-maskable positions sort after every maskable one
     ranks = noise.argsort(dim=1).argsort(dim=1)

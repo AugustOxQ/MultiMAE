@@ -72,7 +72,8 @@ class Trainer:
         self.two_modalities = set(mcfg.modalities) == {"image", "text"}
         processor = processor_name(mcfg.backbone)
         self.transform = build_image_transform(processor)
-        self.collator = Collator(processor, dcfg.max_text_len)
+        content_words = str(mcfg.masking.get("text_mode", "random")) == "content"
+        self.collator = Collator(processor, dcfg.max_text_len, content_words=content_words)
 
         model = MultiMAE(mcfg, max_text_len=dcfg.max_text_len)
         train_set = CocoPairs(dcfg.images_dir, dcfg.annotations_dir, "train", self.transform, dcfg.limit_train)

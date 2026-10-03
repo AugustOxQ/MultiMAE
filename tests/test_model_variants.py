@@ -3,7 +3,7 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from helpers import compose_cfg, make_batch
+from helpers import add_content_mask, compose_cfg, make_batch
 from mmae.models import MultiMAE
 from mmae.models.backbones import TINY_CLIP
 from test_model import recorder, tiny_model
@@ -12,10 +12,13 @@ from test_model import recorder, tiny_model
 VARIANTS = {
     "m1_clean": ("model.mlm_image_source=clean",),
     "m1_clean_detached": ("model.mlm_image_source=clean_detached",),
+    "m2b_content": ("model.masking.text_mode=content",),
 }
 
 
 def variant_batch(tokenizer, variant: str) -> dict:
+    if variant == "m2b_content":
+        return add_content_mask(make_batch(tokenizer), tokenizer)
     return make_batch(tokenizer)
 
 
@@ -71,6 +74,7 @@ def test_model_builds_from_a_config_without_the_new_keys():
     old["loss"]["weights"].pop("masked_view", None)
     model = MultiMAE(OmegaConf.create(old), max_text_len=cfg.data.max_text_len)
     assert model.mlm_image_source == "masked"
+    assert model.text_mode == "random"
 
 
 @pytest.mark.parametrize("source", ["clean", "clean_detached"])
@@ -100,3 +104,26 @@ def test_m1_needs_a_fusion_that_reaches_the_text_decoder(name):
 def test_m1_rejects_an_unknown_source():
     with pytest.raises(ValueError, match="mlm_image_source"):
         tiny_model("fusion_multilearner", "model.mlm_image_source=sideways")
+
+
+def test_m2b_masks_only_content_words(tokenizer, monkeypatch):
+    model = tiny_model("fusion_multilearner", "model.masking.text_mode=content").eval()
+    masks, run = recorder(model, monkeypatch)
+    batch = add_content_mask(make_batch(tokenizer), tokenizer)
+    run(batch)
+    assert masks["token"].any()
+    assert not (masks["token"] & ~batch["content_tokens_mask"]).any()
+
+
+def test_m2b_caption_without_content_words_is_finite(tokenizer):
+    model = tiny_model("fusion_multilearner", "model.masking.text_mode=content")
+    batch = add_content_mask(make_batch(tokenizer, captions=["the of and", "", "a dog", "on the"]), tokenizer)
+    out = model(batch)
+    assert all(torch.isfinite(v) for v in out.values())
+    out["loss"].backward()
+
+
+def test_m2b_without_the_content_mask_fails_clearly(tokenizer):
+    model = tiny_model("fusion_multilearner", "model.masking.text_mode=content")
+    with pytest.raises(KeyError, match="content_tokens_mask"):
+        model(make_batch(tokenizer))

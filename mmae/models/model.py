@@ -56,6 +56,9 @@ class MultiMAE(nn.Module):
                 "mlm_image_source=clean* needs both modalities, reconstruction and a fusion through which the "
                 "text decoder reads the image (concat or multilearner)"
             )
+        self.text_mode = str(cfg.masking.get("text_mode", "random"))
+        if self.text_mode not in ("random", "content"):
+            raise ValueError(f"masking.text_mode must be 'random' or 'content', got {self.text_mode!r}")
 
         towers = build_backbone(cfg.backbone.type, cfg.backbone.pretrained, cfg.pooling)
         dim, dec = int(cfg.fusion.dim), cfg.decoder
@@ -131,7 +134,15 @@ class MultiMAE(nn.Module):
             )
             image_tokens = self.image_proj(self.vision.encode(images, ids_keep))
         if self.use_text:
-            token_mask = random_token_mask(attention_mask, batch["special_tokens_mask"], self.text_ratio)
+            allowed = None
+            if self.text_mode == "content":
+                if "content_tokens_mask" not in batch:
+                    raise KeyError(
+                        "masking.text_mode=content needs batch['content_tokens_mask']: build the Collator with "
+                        "content_words=True"
+                    )
+                allowed = batch["content_tokens_mask"]
+            token_mask = random_token_mask(attention_mask, batch["special_tokens_mask"], self.text_ratio, allowed=allowed)
             masked_text_hidden = self.text.encode(input_ids, attention_mask, token_mask)
             text_tokens = self.text_proj(masked_text_hidden)
             text_padding = ~attention_mask.bool()

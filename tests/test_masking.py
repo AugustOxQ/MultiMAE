@@ -66,3 +66,25 @@ def test_token_mask_rejects_bad_ratio(ratio):
     attention, special = token_batch()
     with pytest.raises(ValueError):
         random_token_mask(attention, special, ratio)
+
+
+def test_token_mask_allowed_none_is_unchanged():
+    attention = torch.ones(4, 12, dtype=torch.long)
+    special = torch.zeros(4, 12, dtype=torch.long)
+    special[:, 0] = special[:, -1] = 1
+    a = random_token_mask(attention, special, 0.4, generator=torch.Generator().manual_seed(3))
+    b = random_token_mask(attention, special, 0.4, generator=torch.Generator().manual_seed(3), allowed=None)
+    assert torch.equal(a, b)
+
+
+def test_token_mask_draws_only_allowed_tokens_with_the_full_count():
+    attention = torch.ones(3, 12, dtype=torch.long)
+    special = torch.zeros(3, 12, dtype=torch.long)
+    special[:, 0] = special[:, -1] = 1
+    allowed = torch.zeros(3, 12, dtype=torch.bool)
+    allowed[0, 1:9] = True      # 8 allowed of 10 real tokens: k = round(0.4 * 10) = 4
+    allowed[1, 1:3] = True      # 2 allowed: k capped at 2
+    # row 2: nothing allowed -> no mask
+    mask = random_token_mask(attention, special, 0.4, generator=torch.Generator().manual_seed(0), allowed=allowed)
+    assert not (mask & ~allowed).any()
+    assert mask.sum(dim=1).tolist() == [4, 2, 0]

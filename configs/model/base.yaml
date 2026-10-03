@@ -14,6 +14,8 @@ mlm_image_source: masked # masked | clean | clean_detached: the image the MLM de
 masking:
   image_ratio: 0.75
   text_ratio: 0.15
+  text_mode: random      # random | content: content draws the masked tokens only from content words (stop words,
+                         # punctuation and numbers never), the same count as random (M2b)
 fusion:
   type: concat           # none | concat | multilearner
   dim: 256
