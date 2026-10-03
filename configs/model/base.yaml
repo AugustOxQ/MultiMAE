@@ -8,6 +8,9 @@ backbone:
 freeze_backbones: false
 reconstruction: true    # false = contrastive only: no masked pass, fusion, projections or decoders
 pooling: native          # native: CLIP's CLS/EOS pooling + pretrained projections; mean: mean pool + new projection
+mlm_image_source: masked # masked | clean | clean_detached: the image the MLM decoder reads. masked = the 25% of
+                         # patches the masked pass keeps (default); clean = all patches of the clean pass;
+                         # clean_detached = the same without gradient into the vision tower through that path
 masking:
   image_ratio: 0.75
   text_ratio: 0.15

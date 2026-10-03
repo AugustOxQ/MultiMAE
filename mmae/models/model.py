@@ -22,6 +22,7 @@ from mmae.models.masking import random_patch_mask, random_token_mask
 # Parameter names (substrings) that get no weight decay, besides every parameter with ndim < 2.
 NO_DECAY_KEYS = ("position_embedding", "token_embedding", "queries", "pos_embed", "type_embed")
 MODALITIES = {"image", "text"}
+MLM_IMAGE_SOURCES = ("masked", "clean", "clean_detached")
 
 
 class MultiMAE(nn.Module):
@@ -44,6 +45,17 @@ class MultiMAE(nn.Module):
         self.loss_weights = {k: float(v) for k, v in cfg.loss.weights.items()}
         self.gather = bool(cfg.loss.gather)
         self.norm_pix = bool(cfg.loss.norm_pix)
+        # .get: run configs saved before a switch existed mean its default (today's behaviour)
+        self.mlm_image_source = str(cfg.get("mlm_image_source", "masked"))
+        if self.mlm_image_source not in MLM_IMAGE_SOURCES:
+            raise ValueError(f"mlm_image_source must be one of {MLM_IMAGE_SOURCES}, got {self.mlm_image_source!r}")
+        if self.mlm_image_source != "masked" and not (
+            self.reconstruction and self.has_contrastive and cfg.fusion.type != "none"
+        ):
+            raise ValueError(
+                "mlm_image_source=clean* needs both modalities, reconstruction and a fusion through which the "
+                "text decoder reads the image (concat or multilearner)"
+            )
 
         towers = build_backbone(cfg.backbone.type, cfg.backbone.pretrained, cfg.pooling)
         dim, dec = int(cfg.fusion.dim), cfg.decoder
@@ -101,16 +113,18 @@ class MultiMAE(nn.Module):
         attention_mask = batch.get("attention_mask")
         losses: dict[str, torch.Tensor] = {}
 
+        image_emb = text_emb = clean_image_tokens = None
         if self.has_contrastive:
-            losses["contrastive"] = contrastive_loss(
-                self.embed_image(images), self.embed_text(input_ids, attention_mask), self.logit_scale, self.gather
-            )
+            clean_image_tokens = self.vision.encode(images)
+            image_emb = self.vision.pool(clean_image_tokens)
+            text_emb = self.embed_text(input_ids, attention_mask)
+            losses["contrastive"] = contrastive_loss(image_emb, text_emb, self.logit_scale, self.gather)
 
         if not self.reconstruction:
             return {"loss": self.loss_weights["contrastive"] * losses["contrastive"],
                     "loss_contrastive": losses["contrastive"]}
 
-        image_tokens = text_tokens = text_padding = None
+        image_tokens = text_tokens = text_padding = masked_text_hidden = None
         if self.use_image:
             ids_keep, patch_mask = random_patch_mask(
                 images.shape[0], self.vision.num_patches, self.image_ratio, device=images.device
@@ -118,15 +132,20 @@ class MultiMAE(nn.Module):
             image_tokens = self.image_proj(self.vision.encode(images, ids_keep))
         if self.use_text:
             token_mask = random_token_mask(attention_mask, batch["special_tokens_mask"], self.text_ratio)
-            text_tokens = self.text_proj(self.text.encode(input_ids, attention_mask, token_mask))
+            masked_text_hidden = self.text.encode(input_ids, attention_mask, token_mask)
+            text_tokens = self.text_proj(masked_text_hidden)
             text_padding = ~attention_mask.bool()
 
         fused = self.fusion(image_tokens, text_tokens, text_padding)
+        text_fused = fused
+        if self.mlm_image_source != "masked":  # M1: the MLM decoder reads every patch of the clean pass
+            clean = clean_image_tokens.detach() if self.mlm_image_source == "clean_detached" else clean_image_tokens
+            text_fused = self.fusion(self.image_proj(clean), text_tokens, text_padding)
         if self.use_image:
             pred = self.image_decoder(fused.image_memory, fused.image_padding)
             losses["mae"] = mae_loss(pred, images, patch_mask, self.vision.patch_size, norm_pix=self.norm_pix)
         if self.use_text:
-            logits = self.text_decoder(fused.text_memory, fused.text_padding, query_padding=text_padding)
+            logits = self.text_decoder(text_fused.text_memory, text_fused.text_padding, query_padding=text_padding)
             losses["mlm"] = mlm_loss(logits, input_ids, token_mask)
 
         out = {f"loss_{name}": value for name, value in losses.items()}
