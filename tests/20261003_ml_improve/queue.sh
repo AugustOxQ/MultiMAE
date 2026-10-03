@@ -6,6 +6,8 @@
 # launch commit; each queue line names the commit it runs at (it must already be synced to both nodes).
 #
 #   queue.txt line:   <sha> <name> <seed> <attempt> <hydra overrides...>
+#   A name starting with "diag" runs `bash scripts/run_diagnostics.sh <overrides>` (seed unused) and only on
+#   $DIAG_NODE, where the baseline checkpoints are; the first line eligible for a node is launched there.
 #   running.txt line: <tag> <node> <sha> <name> <seed> <attempt> <hydra overrides...>
 #
 # Start detached:  setsid nohup bash tests/20261003_ml_improve/queue.sh > /dev/null 2>&1 &
@@ -21,6 +23,7 @@ QUEUE=$DIR/queue.txt
 RUNNING=$DIR/running.txt
 DONE=$DIR/done.txt
 NODES="node403 node405"
+DIAG_NODE=node403
 touch "$QUEUE" "$RUNNING" "$DONE"
 
 log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
@@ -39,8 +42,12 @@ launch() {  # node sha name seed overrides... -> prints the tag, or nothing
   local node=$1 sha=$2 name=$3 seed=$4
   shift 4
   git -C "$WT" checkout -q --detach "$sha" || { log "checkout $sha failed"; return 1; }
-  (cd "$WT" && timeout 900 "$C" launch --node "$node" -- python train.py data=coco_cluster seed="$seed" \
-     wandb.group=ml_improve wandb.name="$name" "$@" 2>&1) > "$DIR/.launch.out"
+  if [[ $name == diag* ]]; then
+    (cd "$WT" && timeout 900 "$C" launch --node "$node" -- bash scripts/run_diagnostics.sh "$@" 2>&1) > "$DIR/.launch.out"
+  else
+    (cd "$WT" && timeout 900 "$C" launch --node "$node" -- python train.py data=coco_cluster seed="$seed" \
+       wandb.group=ml_improve wandb.name="$name" "$@" 2>&1) > "$DIR/.launch.out"
+  fi
   result tag < "$DIR/.launch.out"
 }
 
@@ -77,13 +84,16 @@ while true; do
     for node in $NODES; do
       free=$(free_slots "$node")
       while [ "${free:-0}" -gt 0 ] && [ -s "$QUEUE" ]; do
-        read -r sha name seed attempt overrides < "$QUEUE"
+        # first line eligible for this node: diag* lines only on $DIAG_NODE
+        lineno=$(awk -v node="$node" -v dnode="$DIAG_NODE" '$2 !~ /^diag/ || node == dnode {print NR; exit}' "$QUEUE")
+        [ -z "$lineno" ] && break
+        read -r sha name seed attempt overrides < <(sed -n "${lineno}p" "$QUEUE")
         tag=$(launch "$node" "$sha" "$name" "$seed" $overrides)
         if [ -z "$tag" ]; then
           log "launch $name seed=$seed on $node failed: $(tail -n 3 "$DIR/.launch.out" | tr '\n' ' ' | cut -c1-300)"
           break  # retry next round
         fi
-        sed -i '1d' "$QUEUE"
+        sed -i "${lineno}d" "$QUEUE"
         echo "$tag $node $sha $name $seed $attempt $overrides" >> "$RUNNING"
         log "LAUNCHED $tag on $node: $name seed=$seed attempt=$attempt at $sha ($overrides)"
         free=$((free - 1))
