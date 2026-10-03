@@ -41,6 +41,23 @@ Model configs (`configs/model/`), all built on `base.yaml`:
 | `image_mae` | Image only: MAE on the CLIP vision tower (debugging, comparison). Monitors `val/loss`. |
 | `text_mlm` | Text only: MLM on the CLIP text tower (debugging, comparison). Monitors `val/loss`. |
 
+### Switches for the multilearner line
+
+Every switch below defaults to today's behaviour (losses, masks, parameter groups and data order unchanged); old run configs without the keys still build. Arm ids are from `docs/superpowers/specs/2026-10-03-improve-multilearner-design.md`.
+
+| Arm | Key | Default | Meaning |
+|---|---|---|---|
+| M1 | `model.mlm_image_source` | `masked` | Image the MLM decoder reads: `masked` (the 25% of patches the masked pass keeps), `clean` (all patches of the clean pass) or `clean_detached` (the same, no gradient into the vision tower through that path). |
+| M2b | `model.masking.text_mode` | `random` | `content`: the masked text tokens are drawn only from content words (stop words, punctuation and numbers never; word list in `mmae/data/stopwords.py`), same count as `random`. A caption with no content word masks nothing. |
+| M3 | `model.pooled_conditioning` | `false` | `true`: the text decoder also reads the clean image embedding and the image decoder the clean text embedding, one extra memory token each (never their own modality). |
+| M6 | `model.loss.weights.masked_view` | `0.0` | Weight of an InfoNCE between the masked caption's pooled embedding and the clean images. |
+| R2 | `train.lr_text`, `train.lr_vision` | `null` | Learning rate of the CLIP text and vision tower; `null` falls back to `train.lr_backbone`. |
+| R2 | `train.layer_decay` | `1.0` | BEiT-style layer-wise lr decay inside each tower; `1.0` is none. |
+| R2 | `train.freeze_vision_epochs` | `0` | The vision tower's lr is 0 for the first N epochs (counted in optimizer steps, so it holds with `grad_accum > 1`). |
+| | `train.seeded_sampler` | `false` | `true`: the training shuffle uses a generator seeded by `seed` alone, so seed k gives every model type the same data order. |
+
+Every new `train` key is in both `configs/train/default.yaml` and `configs/train/debug.yaml`. Run registry for this line: `tests/20261003_ml_improve/runs.md`.
+
 `model.backbone.pretrained` names the CLIP checkpoint (default `openai/clip-vit-base-patch32`), and the tokenizer and image preprocessing follow it: `model.backbone.processor` defaults to `${.pretrained}`, except that `tiny-random-clip` (a tiny random CLIP for tests and CPU smoke runs) uses B/32's.
 
 The contrastive loss uses CLIP's pretrained, learnable logit scale. After each optimizer step the trainer clamps the parameter to [0, ln 100], as open_clip does, so the scale stays at most 100 without cutting off its gradient; `train/logit_scale` logs the scale.
@@ -85,6 +102,22 @@ Known-answer check: zero-shot OpenAI CLIP ViT-B/32 on the COCO 5k Karpathy test 
 | t2i R@5 / R@10 | 55.96 / 66.87 | |
 | rsum | 361.98 | |
 
+### VWSD
+
+`eval.vwsd_dir` points at the SemEval-2023 Task 1 Visual Word Sense Disambiguation test package (CC-BY-NC 4.0; local `/data/SSD/vwsd`, cluster node `/local/wding/Dataset/vwsd`); null skips it. When set, `evaluate.py` adds `Hit@1` and `MRR` in percent (`mmae/engine/vwsd.py`): each item's text query is scored against its 10 candidate images. `eval.vwsd_lang` (default `en`) picks the language, `eval.vwsd_prompt` (default `{phrase}`; `{phrase}` and `{word}` are filled in) the text query. Zero-shot CLIP ViT-B/32 on the 463 English test items: Hit@1 58.10, MRR 72.79 (CPU).
+
+```bash
+python evaluate.py model=fusion_concat eval.vwsd_dir=/data/SSD/vwsd
+```
+
+### Stage 0 diagnostics
+
+`scripts/diagnose.py` (cluster wrapper `scripts/run_diagnostics.sh`, which sets `data=coco_cluster`) encodes the COCO 5k test split with every run found under `+diag.runs_root` plus zero-shot CLIP, and writes `+diag.out/diagnostics.json`, `embeddings/` and `per_query.pt`. It reports VWSD, tower swaps (each non-contrastive run's towers are paired with the contrastive run of the same seed), class-set purity, PMRP by query type, similarity statistics and a masked-caption probe. The "class-set groups" come from ECCV Caption's PM lists, which are symmetric but not transitive on the real data, so they approximate identical COCO class sets.
+
+```bash
+scripts/run_diagnostics.sh +diag.runs_root=<dir> +diag.out=<dir> eval.vwsd_dir=/local/wding/Dataset/vwsd
+```
+
 ## Known limitations
 
 - Validation and test losses (`val/loss*`, `test/loss*`) depend on the number of GPUs. With several processes, Accelerate pads the last eval batch with duplicate pairs (`even_batches`), each rank draws its own eval masks (seed plus rank), and the contrastive negatives come from the global batch, which grows with the GPU count. Compare losses only between runs on the same number of GPUs. Retrieval metrics do not depend on it (the padded duplicates are dropped before the metrics), so neither does model selection for the two-modality configs, which monitor `val/retrieval/rsum`; `image_mae` and `text_mlm` monitor `val/loss`, which does.
@@ -112,6 +145,8 @@ res/<wandb.project>/<wandb.group or default>/<YYYYMMDD_HHMMSS>_<name>/
 python -m pytest            # fast: CPU only, tiny random CLIP, fake COCO
 python -m pytest -m slow    # real CLIP B/32, real COCO and a GPU, including the zero-shot check
 ```
+
+`tests/test_model_variants.py` runs the gradient and leak-guard tests over every model switch in its `VARIANTS` dict (arm name to overrides): a new switch gets both tests by adding one entry there.
 
 ## Where the old code is
 
