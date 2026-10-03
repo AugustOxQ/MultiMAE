@@ -134,3 +134,19 @@ def test_build_backbone_registry():
         build_backbone("open_clip", TINY_CLIP)
     with pytest.raises(ValueError):
         build_backbone("hf_clip", TINY_CLIP, pooling="max")
+
+
+@pytest.mark.parametrize("pooling", ["native", "mean"])
+def test_pool_of_encode_is_embed(pooling, tokenizer):
+    from helpers import make_batch
+    from mmae.models.backbones import build_backbone
+
+    torch.manual_seed(0)
+    towers = build_backbone("hf_clip", TINY_CLIP, pooling)
+    batch = make_batch(tokenizer)
+    with torch.no_grad():
+        image = towers.vision.pool(towers.vision.encode(batch["pixel_values"]))
+        text_tokens = towers.text.encode(batch["input_ids"], batch["attention_mask"])
+        text = towers.text.pool(text_tokens, batch["input_ids"], batch["attention_mask"])
+        assert torch.equal(image, towers.vision.embed(batch["pixel_values"]))
+        assert torch.equal(text, towers.text.embed(batch["input_ids"], batch["attention_mask"]))

@@ -91,13 +91,16 @@ class ClipVisionTower(nn.Module):
         hidden = self.model.pre_layrnorm(hidden)
         return self.model.encoder(inputs_embeds=hidden).last_hidden_state
 
-    def embed(self, pixel_values: torch.Tensor) -> torch.Tensor:
-        tokens = self.encode(pixel_values)
+    def pool(self, tokens: torch.Tensor) -> torch.Tensor:
+        """L2-normalized joint-space embedding from encode()'s hidden states of a clean image."""
         if self.pooling == "native":
             z = self.projection(self.model.post_layernorm(tokens[:, 0]))
         else:
             z = self.mean_projection(tokens.mean(dim=1))
         return F.normalize(z, dim=-1)
+
+    def embed(self, pixel_values: torch.Tensor) -> torch.Tensor:
+        return self.pool(self.encode(pixel_values))
 
     def pretrained_parameters(self) -> Iterator[nn.Parameter]:
         yield from self.model.parameters()
@@ -149,8 +152,9 @@ class ClipTextTower(nn.Module):
             return input_ids.to(torch.int).argmax(dim=-1)
         return (input_ids == self.model.eos_token_id).int().argmax(dim=-1)
 
-    def embed(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
-        tokens = self.encode(input_ids, attention_mask)
+    def pool(self, tokens: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """L2-normalized joint-space embedding from encode()'s hidden states (EOS token, or the mean over real
+        tokens under mean pooling). Works on a masked caption's hidden states too: EOS is never masked."""
         if self.pooling == "native":
             rows = torch.arange(tokens.shape[0], device=tokens.device)
             z = self.projection(tokens[rows, self.eos_positions(input_ids).to(tokens.device)])
@@ -158,6 +162,9 @@ class ClipTextTower(nn.Module):
             weights = attention_mask.unsqueeze(-1).to(tokens.dtype)
             z = self.mean_projection((tokens * weights).sum(dim=1) / weights.sum(dim=1).clamp(min=1.0))
         return F.normalize(z, dim=-1)
+
+    def embed(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        return self.pool(self.encode(input_ids, attention_mask), input_ids, attention_mask)
 
     def pretrained_parameters(self) -> Iterator[nn.Parameter]:
         yield from self.model.parameters()
