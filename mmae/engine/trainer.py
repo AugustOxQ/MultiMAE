@@ -78,19 +78,35 @@ class Trainer:
         model = MultiMAE(mcfg, max_text_len=dcfg.max_text_len)
         train_set = CocoPairs(dcfg.images_dir, dcfg.annotations_dir, "train", self.transform, dcfg.limit_train)
         train_loader = self._loader(train_set, tcfg.batch_size, shuffle=True, drop_last=True, collate=self.collator.pairs)
-        optimizer = torch.optim.AdamW(model.param_groups(tcfg.lr, tcfg.lr_backbone, tcfg.weight_decay))
+        freeze_epochs = int(tcfg.get("freeze_vision_epochs", 0))
+        optimizer = torch.optim.AdamW(model.param_groups(
+            tcfg.lr, tcfg.lr_backbone, tcfg.weight_decay, lr_text=tcfg.get("lr_text"),
+            lr_vision=tcfg.get("lr_vision"), layer_decay=float(tcfg.get("layer_decay", 1.0)),
+            split_towers=freeze_epochs > 0,
+        ))
         self.model, self.optimizer, self.train_loader = accelerator.prepare(model, optimizer, train_loader)
         if len(self.train_loader) == 0:
             raise ValueError(
                 f"training set of {len(train_set)} items yields no full batch of {tcfg.batch_size} "
                 f"per process ({accelerator.num_processes} processes)"
             )
-        total_steps = math.ceil(len(self.train_loader) / tcfg.grad_accum) * tcfg.epochs
+        steps_per_epoch = math.ceil(len(self.train_loader) / tcfg.grad_accum)
+        total_steps = steps_per_epoch * tcfg.epochs
+
+        def schedule(step: int) -> float:
+            return warmup_cosine(step, tcfg.warmup_steps, total_steps)
+
+        lambdas = schedule
+        if freeze_epochs > 0:  # R2: vision lr 0 for the first freeze_epochs epochs, counted in optimizer steps
+            freeze_steps = steps_per_epoch * freeze_epochs
+
+            def frozen(step: int) -> float:
+                return 0.0 if step < freeze_steps else schedule(step)
+
+            lambdas = [frozen if group.get("tower") == "vision" else schedule for group in optimizer.param_groups]
         # Built on the raw optimizer and stepped by hand once per optimizer step, so it does not depend on
         # accelerate's scheduler stepping rules.
-        self.scheduler = torch.optim.lr_scheduler.LambdaLR(
-            optimizer, lambda step: warmup_cosine(step, tcfg.warmup_steps, total_steps)
-        )
+        self.scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambdas)
         self.eval_loaders: dict[str, EvalLoaders] = {}
         self.global_step = 0
         # ECCV Caption, CxC, COCO 1K and PMRP on the test split, on the main process only: every process holds

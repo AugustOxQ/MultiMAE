@@ -9,6 +9,8 @@ decoders are not built.
 """
 from __future__ import annotations
 
+import re
+
 import torch
 from omegaconf import DictConfig
 from torch import nn
@@ -21,6 +23,17 @@ from mmae.models.masking import random_patch_mask, random_token_mask
 
 # Parameter names (substrings) that get no weight decay, besides every parameter with ndim < 2.
 NO_DECAY_KEYS = ("position_embedding", "token_embedding", "queries", "pos_embed", "type_embed")
+
+
+def tower_layer_id(name: str, num_layers: int) -> int:
+    """BEiT-style depth index of a tower parameter (name relative to the tower): 0 for the embeddings and the
+    vision pre-norm, i + 1 for transformer layer i, num_layers + 1 for the final norm and the projection."""
+    match = re.search(r"encoder\.layers\.(\d+)\.", name)
+    if match:
+        return int(match.group(1)) + 1
+    if "embeddings." in name or "pre_layrnorm" in name:
+        return 0
+    return num_layers + 1
 MODALITIES = {"image", "text"}
 MLM_IMAGE_SOURCES = ("masked", "clean", "clean_detached")
 
@@ -185,22 +198,62 @@ class MultiMAE(nn.Module):
         out["loss"] = sum(self.loss_weights[name] * value for name, value in losses.items())
         return out
 
-    def param_groups(self, lr: float, lr_backbone: float, weight_decay: float) -> list[dict]:
-        """AdamW groups: pretrained tower weights at lr_backbone, everything else at lr; no decay on
-        biases, norms, embeddings, queries and the logit scale."""
+    def param_groups(
+        self, lr: float, lr_backbone: float, weight_decay: float, lr_text: float | None = None,
+        lr_vision: float | None = None, layer_decay: float = 1.0, split_towers: bool = False,
+    ) -> list[dict]:
+        """AdamW groups: pretrained tower weights at the backbone lr, everything else at lr; no decay on biases,
+        norms, embeddings, queries and the logit scale. With per-tower lrs, layer decay or split_towers, the
+        tower weights are grouped per tower and layer (lr * layer_decay ** (num_layers + 1 - layer)), and every
+        group carries "tower" ("vision", "text" or None) for the trainer's frozen warmup."""
+        split = split_towers or lr_text is not None or lr_vision is not None or layer_decay != 1.0
         backbone = {id(p) for tower in self.towers() for p in tower.pretrained_parameters()}
-        groups: dict[tuple[bool, bool], list[nn.Parameter]] = {}
+        if not split:
+            groups: dict[tuple[bool, bool], list[nn.Parameter]] = {}
+            for name, param in self.named_parameters():
+                if not param.requires_grad:
+                    continue
+                no_decay = param.ndim < 2 or any(key in name for key in NO_DECAY_KEYS)
+                groups.setdefault((id(param) in backbone, no_decay), []).append(param)
+            return [
+                {
+                    "params": params,
+                    "lr": lr_backbone if is_backbone else lr,
+                    "weight_decay": 0.0 if no_decay else weight_decay,
+                    "name": f"{'backbone' if is_backbone else 'head'}_{'no_decay' if no_decay else 'decay'}",
+                }
+                for (is_backbone, no_decay), params in sorted(groups.items())
+            ]
+
+        tower_lr = {"vision": lr_backbone if lr_vision is None else lr_vision,
+                    "text": lr_backbone if lr_text is None else lr_text}
+        place: dict[int, tuple[str, int, int]] = {}  # id(param) -> (tower, layer, num_layers)
+        for tower_name, tower in (("vision", self.vision), ("text", self.text)):
+            if tower is None:
+                continue
+            num_layers = len(tower.model.encoder.layers)
+            for name, param in tower.named_parameters():
+                if id(param) in backbone:
+                    place[id(param)] = (tower_name, tower_layer_id(name, num_layers), num_layers)
+        split_groups: dict[tuple[str, int, bool], dict] = {}
         for name, param in self.named_parameters():
             if not param.requires_grad:
                 continue
             no_decay = param.ndim < 2 or any(key in name for key in NO_DECAY_KEYS)
-            groups.setdefault((id(param) in backbone, no_decay), []).append(param)
-        return [
-            {
-                "params": params,
-                "lr": lr_backbone if is_backbone else lr,
-                "weight_decay": 0.0 if no_decay else weight_decay,
-                "name": f"{'backbone' if is_backbone else 'head'}_{'no_decay' if no_decay else 'decay'}",
-            }
-            for (is_backbone, no_decay), params in sorted(groups.items())
-        ]
+            suffix = "no_decay" if no_decay else "decay"
+            if id(param) in place:
+                tower_name, layer, num_layers = place[id(param)]
+                key = (tower_name, layer, no_decay)
+                group = split_groups.setdefault(key, {
+                    "params": [], "lr": tower_lr[tower_name] * layer_decay ** (num_layers + 1 - layer),
+                    "weight_decay": 0.0 if no_decay else weight_decay,
+                    "name": f"backbone_{tower_name}_layer{layer:02d}_{suffix}", "tower": tower_name,
+                })
+            else:
+                key = ("head", -1, no_decay)
+                group = split_groups.setdefault(key, {
+                    "params": [], "lr": lr, "weight_decay": 0.0 if no_decay else weight_decay,
+                    "name": f"head_{suffix}", "tower": None,
+                })
+            group["params"].append(param)
+        return [split_groups[key] for key in sorted(split_groups)]

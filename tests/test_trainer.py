@@ -149,3 +149,39 @@ def test_extended_metrics_skipped_on_fake_coco(tmp_path, fake_coco, accelerator,
         test = trainer.evaluate("test")
     assert trainer.extended_metrics is None
     assert "test/retrieval/rsum" in test and not any(k.startswith(("test/eccv", "test/pmrp", "test/coco1k")) for k in test)
+
+
+def _snapshot(params):
+    return [p.detach().clone() for p in params]
+
+
+def _same(params, snapshot):
+    return all(torch.equal(p, s) for p, s in zip(params, snapshot))
+
+
+@pytest.mark.parametrize("grad_accum", [1, 2])
+def test_frozen_vision_warmup(tmp_path, fake_coco, grad_accum):
+    # train.py builds the Accelerator with gradient_accumulation_steps=train.grad_accum; the shared fixture does not
+    AcceleratorState._reset_state(True)
+    accelerator = Accelerator(cpu=True, gradient_accumulation_steps=grad_accum)
+    cfg = tiny_cfg(tmp_path, fake_coco, "model=contrastive", "train.epochs=2", "train.freeze_vision_epochs=1",
+                   f"train.grad_accum={grad_accum}")
+    with Run(cfg, enabled=False) as run:
+        trainer = Trainer(cfg, accelerator, run, MetricLogger(run))
+        model = accelerator.unwrap_model(trainer.model)
+        vision, text = list(model.vision.pretrained_parameters()), list(model.text.pretrained_parameters())
+        v0, t0 = _snapshot(vision), _snapshot(text)
+        trainer.train_epoch(1)
+        assert _same(vision, v0), "vision tower moved during the frozen epoch"
+        assert not _same(text, t0), "text tower did not train"
+        trainer.train_epoch(2)
+        assert not _same(vision, v0), "vision tower did not train after the frozen epoch"
+    AcceleratorState._reset_state(True)
+
+
+def test_default_schedule_keeps_the_legacy_groups(tmp_path, fake_coco, accelerator):
+    cfg = tiny_cfg(tmp_path, fake_coco, "model=fusion_concat")
+    with Run(cfg, enabled=False) as run:
+        trainer = Trainer(cfg, accelerator, run, MetricLogger(run))
+        names = sorted(g["name"] for g in trainer.optimizer.param_groups)
+    assert names == ["backbone_decay", "backbone_no_decay", "head_decay", "head_no_decay"]

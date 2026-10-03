@@ -14,3 +14,7 @@ min_delta: 1.0e-4
 log_every: 50
 num_workers: 8
 save: best          # best | none
+lr_text: null            # CLIP text tower lr; null = lr_backbone (R2 uses 5.0e-5)
+lr_vision: null          # CLIP vision tower lr; null = lr_backbone (R2 uses 5.0e-6)
+layer_decay: 1.0         # layer-wise lr decay inside each tower, BEiT-style (R2 uses 0.7); 1.0 = none
+freeze_vision_epochs: 0  # the vision tower's lr is 0 for the first N epochs (R2 uses 2)

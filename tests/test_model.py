@@ -279,3 +279,36 @@ def test_rejects_bad_config():
         tiny_model("fusion_concat", "model.modalities=[audio]")
     with pytest.raises(ValueError):
         tiny_model("fusion_concat", "data.max_text_len=100")  # CLIP has 77 positions
+
+
+def test_tower_layer_id():
+    from mmae.models.model import tower_layer_id
+
+    assert tower_layer_id("model.embeddings.patch_embedding.weight", 12) == 0
+    assert tower_layer_id("model.pre_layrnorm.weight", 12) == 0
+    assert tower_layer_id("model.encoder.layers.0.mlp.fc1.weight", 12) == 1
+    assert tower_layer_id("model.encoder.layers.11.mlp.fc1.weight", 12) == 12
+    assert tower_layer_id("model.post_layernorm.weight", 12) == 13
+    assert tower_layer_id("projection.weight", 12) == 13
+
+
+def test_split_param_groups_per_tower_and_layer():
+    model = tiny_model("fusion_concat")
+    groups = model.param_groups(1e-4, 1e-5, 0.05, lr_text=5e-5, lr_vision=5e-6, layer_decay=0.5)
+    seen = [id(p) for g in groups for p in g["params"]]
+    trainable = [id(p) for p in model.parameters() if p.requires_grad]
+    assert sorted(seen) == sorted(trainable) and len(seen) == len(set(seen))
+
+    def lr_of(param):
+        return next(g["lr"] for g in groups if any(p is param for p in g["params"]))
+
+    layers = len(model.vision.model.encoder.layers)  # 2 in the tiny CLIP
+    assert lr_of(model.text.projection.weight) == pytest.approx(5e-5)                    # top: no decay
+    assert lr_of(model.vision.projection.weight) == pytest.approx(5e-6)
+    assert lr_of(model.vision.model.encoder.layers[0].mlp.fc1.weight) == pytest.approx(5e-6 * 0.5 ** layers)
+    assert lr_of(model.vision.model.embeddings.patch_embedding.weight) == pytest.approx(5e-6 * 0.5 ** (layers + 1))
+    assert lr_of(model.image_proj.weight) == pytest.approx(1e-4)                          # new modules
+    assert lr_of(model.text.mask_embedding) == pytest.approx(1e-4)
+    towers = {g["tower"] for g in groups if any(p is model.vision.projection.weight for p in g["params"])}
+    assert towers == {"vision"}
+    assert all(g["name"].startswith("backbone") == (g["tower"] is not None) for g in groups)
