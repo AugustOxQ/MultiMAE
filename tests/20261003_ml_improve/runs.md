@@ -11,3 +11,5 @@ All runs: `data=coco_cluster wandb.group=ml_improve`, one GPU each. Results pull
 | 20261003-170850-9203048 | node405/1 | 1 | M2a multilearner text 40% | 43 | 9203048 | `model=fusion_multilearner model.masking.text_ratio=0.4 wandb.name=multilearner_txt40` | running (launched 19:08) |
 | 20261003-170954-9203048 | node405/2 | 1 | R3 contrastive mean pooling | 43 | 9203048 | `model=contrastive model.pooling=mean wandb.name=contrastive_meanpool` | running (launched 19:09) |
 | (relaunch) | node405/0 | 1 | M5 multilearner MAE off (weight 0), MLM kept | 42 | this commit | `model=fusion_multilearner model.loss.weights.mae=0 wandb.name=multilearner_mae0` | to launch |
+
+From 2026-10-03 ~20:30 the Stage 1 queue (`queue.sh`, log `queue.log`, state `queue.txt` / `running.txt` / `done.txt`) launches the remaining arms on both nodes as GPUs free and pulls every finished run; tags are in `queue.log` and `done.txt`. Queued at e8eb0ad's successor (M1 from fad0c6c, M2b from e8eb0ad): M1 clean, M2b content, M1 clean_detached (seed 42); M5 MAE off, M1 clean, M2b content, R5 15 epochs, M1 clean_detached (seed 43).
