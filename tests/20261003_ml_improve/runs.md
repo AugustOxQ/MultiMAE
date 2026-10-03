@@ -13,3 +13,4 @@ All runs: `data=coco_cluster wandb.group=ml_improve`, one GPU each. Results pull
 | (relaunch) | node405/0 | 1 | M5 multilearner MAE off (weight 0), MLM kept | 42 | this commit | `model=fusion_multilearner model.loss.weights.mae=0 wandb.name=multilearner_mae0` | to launch |
 
 From 2026-10-03 ~20:30 the Stage 1 queue (`queue.sh`, log `queue.log`, state `queue.txt` / `running.txt` / `done.txt`) launches the remaining arms on both nodes as GPUs free and pulls every finished run; tags are in `queue.log` and `done.txt`. Queued at e8eb0ad's successor (M1 from fad0c6c, M2b from e8eb0ad): M1 clean, M2b content, M1 clean_detached (seed 42); M5 MAE off, M1 clean, M2b content, R5 15 epochs, M1 clean_detached (seed 43).
+Added to the queue at the next cluster-run commit (M3 from ce60916, M6 from f196a61): M3 pooled conditioning and M6 masked-view InfoNCE (weight 0.25), seeds 42 and 43.
