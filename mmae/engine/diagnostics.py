@@ -14,21 +14,47 @@ import torch
 from mmae.data.stopwords import is_content_word
 from mmae.engine.eccv import pmrp_ground_truth
 
-# The 80 COCO category names as caption words (singular and plural), with common person words.
-COCO_CLASS_WORDS = frozenset("""
-person persons people man men woman women boy boys girl girls child children kid kids guy guys lady ladies player
-players bicycle bicycles bike bikes car cars motorcycle motorcycles motorbike airplane airplanes plane planes jet bus
-buses train trains truck trucks boat boats traffic light lights fire hydrant hydrants stop sign signs parking meter
-meters bench benches bird birds cat cats dog dogs horse horses sheep cow cows elephant elephants bear bears zebra
-zebras giraffe giraffes backpack backpacks umbrella umbrellas handbag handbags purse tie ties suitcase suitcases
-frisbee frisbees skis ski snowboard snowboards ball balls kite kites bat bats glove gloves skateboard skateboards
-surfboard surfboards racket rackets racquet bottle bottles glass glasses cup cups fork forks knife knives spoon
-spoons bowl bowls banana bananas apple apples sandwich sandwiches orange oranges broccoli carrot carrots hotdog
-pizza pizzas donut donuts doughnut doughnuts cake cakes chair chairs couch couches sofa plant plants bed beds table
-tables toilet toilets tv tvs television laptop laptops computer mouse remote remotes keyboard keyboards phone phones
-microwave microwaves oven ovens toaster sink sinks refrigerator refrigerators fridge book books clock clocks vase
-vases scissors teddy toothbrush toothbrushes
-""".split())
+# COCO class -> comma-separated caption terms (singular; plurals are generated). Ambiguous generic single words
+# (orange, light, glass, plant, stop, mouse, remote) count only inside their phrase ("traffic light", "potted plant").
+_CLASS_TERMS = {
+    "person": "person,man,woman,boy,girl,child,kid,guy,lady,player",
+    "bicycle": "bicycle,bike", "car": "car", "motorcycle": "motorcycle,motorbike",
+    "airplane": "airplane,plane,jet", "bus": "bus", "train": "train", "truck": "truck", "boat": "boat",
+    "traffic light": "traffic light", "fire hydrant": "fire hydrant", "stop sign": "stop sign",
+    "parking meter": "parking meter", "bench": "bench", "bird": "bird", "cat": "cat", "dog": "dog",
+    "horse": "horse", "sheep": "sheep", "cow": "cow", "elephant": "elephant", "bear": "bear", "zebra": "zebra",
+    "giraffe": "giraffe", "backpack": "backpack", "umbrella": "umbrella", "handbag": "handbag,purse",
+    "tie": "tie", "suitcase": "suitcase", "frisbee": "frisbee", "skis": "ski", "snowboard": "snowboard",
+    "sports ball": "sports ball,ball", "kite": "kite", "baseball bat": "baseball bat,bat",
+    "baseball glove": "baseball glove,glove", "skateboard": "skateboard", "surfboard": "surfboard",
+    "tennis racket": "tennis racket,racket,racquet", "bottle": "bottle", "wine glass": "wine glass",
+    "cup": "cup", "fork": "fork", "knife": "knife", "spoon": "spoon", "bowl": "bowl", "banana": "banana",
+    "apple": "apple", "sandwich": "sandwich", "orange": "", "broccoli": "broccoli", "carrot": "carrot",
+    "hot dog": "hot dog,hotdog", "pizza": "pizza", "donut": "donut,doughnut", "cake": "cake", "chair": "chair",
+    "couch": "couch,sofa", "potted plant": "potted plant", "bed": "bed", "dining table": "table",
+    "toilet": "toilet", "tv": "tv,television", "laptop": "laptop", "mouse": "", "remote": "",
+    "keyboard": "keyboard", "cell phone": "cell phone,cellphone,phone", "microwave": "microwave", "oven": "oven",
+    "toaster": "toaster", "sink": "sink", "refrigerator": "refrigerator,fridge", "book": "book", "clock": "clock",
+    "vase": "vase", "scissors": "scissors", "teddy bear": "teddy bear", "hair drier": "hair drier,hair dryer",
+    "toothbrush": "toothbrush",
+}
+_IRREGULAR = {"man": "men", "woman": "women", "child": "children", "lady": "ladies", "knife": "knives",
+              "person": "people", "sheep": "sheep", "scissors": "scissors", "ski": "skis"}
+
+
+def _plural(term: str) -> str:
+    head, _, last = term.rpartition(" ")
+    last = _IRREGULAR.get(last) or (last + "es" if last.endswith(("s", "x", "ch", "sh")) else last + "s")
+    return f"{head} {last}".strip()
+
+
+# term (word or phrase, lower case) -> COCO class name
+COCO_CLASS_TERMS: dict[str, str] = {}
+for _cls, _terms in _CLASS_TERMS.items():
+    for _term in filter(None, _terms.split(",")):
+        COCO_CLASS_TERMS[_term] = _cls
+        COCO_CLASS_TERMS[_plural(_term)] = _cls
+_MAX_PHRASE = max(len(t.split()) for t in COCO_CLASS_TERMS)
 _WORD = re.compile(r"[A-Za-z']+")
 
 
@@ -119,7 +145,21 @@ def similarity_stats(image_emb: torch.Tensor, caption_emb: torch.Tensor, groups:
 
 
 def count_class_words(caption: str) -> int:
-    return sum(word.lower() in COCO_CLASS_WORDS for word in _WORD.findall(caption))
+    """Number of distinct COCO classes the caption mentions. Phrases match first (longest first) and consume their
+    tokens ("hot dog" is not "dog"); each class counts once however often it is named."""
+    tokens = [w.lower() for w in _WORD.findall(caption)]
+    found: set[str] = set()
+    i = 0
+    while i < len(tokens):
+        for n in range(min(_MAX_PHRASE, len(tokens) - i), 0, -1):
+            cls = COCO_CLASS_TERMS.get(" ".join(tokens[i:i + n]))
+            if cls is not None:
+                found.add(cls)
+                i += n
+                break
+        else:
+            i += 1
+    return len(found)
 
 
 def drop_words(caption: str, kind: str, k: int, rng: random.Random) -> str | None:

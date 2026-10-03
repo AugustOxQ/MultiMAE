@@ -58,3 +58,15 @@ def test_class_words_and_drop_words():
     assert drop_words("a dog on the beach", "content", 1, rng) in {"a on the beach", "a dog on the"}
     assert drop_words("a dog on the beach", "stop", 3, rng) == "dog beach"
     assert drop_words("a dog", "content", 2, rng) is None
+
+
+@pytest.mark.parametrize("caption, expected", [
+    ("A man riding a horse next to two dogs.", 3),
+    ("a traffic light and a stop sign", 2),
+    ("a hot dog on a plate", 1),
+    ("an orange cat on a table", 2),
+    ("two dogs and a dog", 1),
+    ("a teddy bear and two bears", 2),
+])
+def test_count_class_words_counts_distinct_classes(caption, expected):
+    assert count_class_words(caption) == expected
