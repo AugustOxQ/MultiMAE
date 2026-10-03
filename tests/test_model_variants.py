@@ -13,6 +13,7 @@ VARIANTS = {
     "m1_clean": ("model.mlm_image_source=clean",),
     "m1_clean_detached": ("model.mlm_image_source=clean_detached",),
     "m2b_content": ("model.masking.text_mode=content",),
+    "m3_pooled": ("model.pooled_conditioning=true",),
 }
 
 
@@ -75,6 +76,7 @@ def test_model_builds_from_a_config_without_the_new_keys():
     model = MultiMAE(OmegaConf.create(old), max_text_len=cfg.data.max_text_len)
     assert model.mlm_image_source == "masked"
     assert model.text_mode == "random"
+    assert model.pooled_conditioning is False
 
 
 @pytest.mark.parametrize("source", ["clean", "clean_detached"])
@@ -127,3 +129,26 @@ def test_m2b_without_the_content_mask_fails_clearly(tokenizer):
     model = tiny_model("fusion_multilearner", "model.masking.text_mode=content")
     with pytest.raises(KeyError, match="content_tokens_mask"):
         model(make_batch(tokenizer))
+
+
+def test_m3_each_decoder_reads_the_other_modality(tokenizer, monkeypatch):
+    model = tiny_model("fusion_multilearner", "model.pooled_conditioning=true").eval()
+    masks, run = recorder(model, monkeypatch)
+    batch = make_batch(tokenizer)
+    base = run(batch)[0]
+    assert not torch.equal(run(change(batch, model, masks, "image", True))[0]["text_decoder"], base["text_decoder"])
+    assert not torch.equal(run(change(batch, model, masks, "text", True))[0]["image_decoder"], base["image_decoder"])
+
+
+@pytest.mark.parametrize("name", ["fusion_none", "fusion_concat"])
+def test_m3_works_with_other_fusions(name, tokenizer):
+    model = tiny_model(name, "model.pooled_conditioning=true")
+    model(make_batch(tokenizer))["loss"].backward()
+    missing = [n for n, p in model.named_parameters() if p.requires_grad and p.grad is None]
+    assert not missing, missing
+
+
+@pytest.mark.parametrize("name", ["contrastive", "image_mae", "text_mlm"])
+def test_m3_needs_both_modalities_and_reconstruction(name):
+    with pytest.raises(ValueError, match="pooled_conditioning"):
+        tiny_model(name, "model.pooled_conditioning=true")

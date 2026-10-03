@@ -16,7 +16,7 @@ from torch import nn
 from mmae.losses import contrastive_loss, mae_loss, mlm_loss
 from mmae.models.backbones import build_backbone
 from mmae.models.decoders import QueryDecoder
-from mmae.models.fusion import build_fusion
+from mmae.models.fusion import append_memory_token, build_fusion
 from mmae.models.masking import random_patch_mask, random_token_mask
 
 # Parameter names (substrings) that get no weight decay, besides every parameter with ndim < 2.
@@ -84,6 +84,13 @@ class MultiMAE(nn.Module):
                 )
         if self.reconstruction:
             self.fusion = build_fusion(cfg.fusion)
+        self.pooled_conditioning = bool(cfg.get("pooled_conditioning", False))
+        if self.pooled_conditioning:
+            if not (self.reconstruction and self.has_contrastive):
+                raise ValueError("pooled_conditioning needs both modalities and reconstruction")
+            embed_dim = towers.vision.projection.out_features
+            self.pooled_image_proj = nn.Linear(embed_dim, dim)  # clean image embedding -> text-decoder memory token
+            self.pooled_text_proj = nn.Linear(embed_dim, dim)   # clean text embedding -> image-decoder memory token
 
         for tower in self.towers():
             # The native contrastive head is unused without the contrastive loss or under mean pooling,
@@ -152,11 +159,20 @@ class MultiMAE(nn.Module):
         if self.mlm_image_source != "masked":  # M1: the MLM decoder reads every patch of the clean pass
             clean = clean_image_tokens.detach() if self.mlm_image_source == "clean_detached" else clean_image_tokens
             text_fused = self.fusion(self.image_proj(clean), text_tokens, text_padding)
+        image_memory, image_padding = fused.image_memory, fused.image_padding
+        text_memory, text_memory_padding = text_fused.text_memory, text_fused.text_padding
+        if self.pooled_conditioning:  # M3: each decoder also reads the OTHER modality's clean pooled embedding
+            if self.use_image:
+                image_memory, image_padding = append_memory_token(image_memory, image_padding, self.pooled_text_proj(text_emb))
+            if self.use_text:
+                text_memory, text_memory_padding = append_memory_token(
+                    text_memory, text_memory_padding, self.pooled_image_proj(image_emb)
+                )
         if self.use_image:
-            pred = self.image_decoder(fused.image_memory, fused.image_padding)
+            pred = self.image_decoder(image_memory, image_padding)
             losses["mae"] = mae_loss(pred, images, patch_mask, self.vision.patch_size, norm_pix=self.norm_pix)
         if self.use_text:
-            logits = self.text_decoder(text_fused.text_memory, text_fused.text_padding, query_padding=text_padding)
+            logits = self.text_decoder(text_memory, text_memory_padding, query_padding=text_padding)
             losses["mlm"] = mlm_loss(logits, input_ids, token_mask)
 
         out = {f"loss_{name}": value for name, value in losses.items()}

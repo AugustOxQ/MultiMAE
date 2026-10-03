@@ -11,6 +11,8 @@ pooling: native          # native: CLIP's CLS/EOS pooling + pretrained projectio
 mlm_image_source: masked # masked | clean | clean_detached: the image the MLM decoder reads. masked = the 25% of
                          # patches the masked pass keeps (default); clean = all patches of the clean pass;
                          # clean_detached = the same without gradient into the vision tower through that path
+pooled_conditioning: false   # M3: true = the text decoder also reads the clean image embedding and the image
+                             # decoder the clean text embedding (one extra memory token each; never their own)
 masking:
   image_ratio: 0.75
   text_ratio: 0.15

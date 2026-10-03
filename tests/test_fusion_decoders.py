@@ -82,3 +82,16 @@ def test_query_decoder_shapes_and_query_count():
     assert decoder(memory, query_padding=torch.zeros(2, 7, dtype=torch.bool)).shape == (2, 7, 6)
     with pytest.raises(ValueError):
         decoder(memory, query_padding=torch.zeros(2, 11, dtype=torch.bool))
+
+
+def test_append_memory_token_adds_one_visible_position():
+    from mmae.models.fusion import append_memory_token
+
+    memory = torch.randn(2, 5, 8)
+    token = torch.randn(2, 8)
+    out, padding = append_memory_token(memory, None, token)
+    assert out.shape == (2, 6, 8) and torch.equal(out[:, -1], token) and torch.equal(out[:, :5], memory)
+    assert padding.shape == (2, 6) and not padding.any()
+    given = torch.tensor([[False] * 4 + [True], [False] * 5])
+    _, padding = append_memory_token(memory, given, token)
+    assert torch.equal(padding[:, :5], given) and not padding[:, 5].any()

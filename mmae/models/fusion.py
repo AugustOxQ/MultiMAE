@@ -55,6 +55,17 @@ class NoFusion(nn.Module):
         return FusionOutput(image, None, text, text_padding)
 
 
+def append_memory_token(
+    memory: torch.Tensor, padding: torch.Tensor | None, token: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Append one always-visible token (B, dim) to a decoder memory (B, L, dim); padding (B, L) may be None."""
+    if padding is None:
+        padding = torch.zeros(memory.shape[:2], dtype=torch.bool, device=memory.device)
+    memory = torch.cat([memory, token.unsqueeze(1).to(memory.dtype)], dim=1)
+    padding = torch.cat([padding, torch.zeros_like(padding[:, :1])], dim=1)
+    return memory, padding
+
+
 class ConcatFusion(nn.Module):
     """Concatenate both modalities, then optionally `depth` transformer layers; both decoders read it."""
 
