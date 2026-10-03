@@ -41,7 +41,8 @@ free_slots() { timeout 240 "$C" status --node "$1" 2>/dev/null | result free_slo
 launch() {  # node sha name seed overrides... -> prints the tag, or nothing
   local node=$1 sha=$2 name=$3 seed=$4
   shift 4
-  git -C "$WT" checkout -q --detach "$sha" || { log "checkout $sha failed"; return 1; }
+  # launch needs a named branch (any name); eval-baselines is checked out in the main worktree
+  git -C "$WT" checkout -q -B queue-launch "$sha" || { log "checkout $sha failed"; return 1; }
   if [[ $name == diag* ]]; then
     (cd "$WT" && timeout 900 "$C" launch --node "$node" -- bash scripts/run_diagnostics.sh "$@" 2>&1) > "$DIR/.launch.out"
   else
