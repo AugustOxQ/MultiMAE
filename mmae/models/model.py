@@ -43,6 +43,7 @@ class MultiMAE(nn.Module):
         self.image_ratio = float(cfg.masking.image_ratio)
         self.text_ratio = float(cfg.masking.text_ratio)
         self.loss_weights = {k: float(v) for k, v in cfg.loss.weights.items()}
+        self.masked_view_weight = float(cfg.loss.weights.get("masked_view", 0.0))
         self.gather = bool(cfg.loss.gather)
         self.norm_pix = bool(cfg.loss.norm_pix)
         # .get: run configs saved before a switch existed mean its default (today's behaviour)
@@ -56,6 +57,8 @@ class MultiMAE(nn.Module):
                 "mlm_image_source=clean* needs both modalities, reconstruction and a fusion through which the "
                 "text decoder reads the image (concat or multilearner)"
             )
+        if self.masked_view_weight > 0 and not (self.reconstruction and self.has_contrastive):
+            raise ValueError("loss.weights.masked_view > 0 needs both modalities and reconstruction")
         self.text_mode = str(cfg.masking.get("text_mode", "random"))
         if self.text_mode not in ("random", "content"):
             raise ValueError(f"masking.text_mode must be 'random' or 'content', got {self.text_mode!r}")
@@ -159,6 +162,9 @@ class MultiMAE(nn.Module):
         if self.mlm_image_source != "masked":  # M1: the MLM decoder reads every patch of the clean pass
             clean = clean_image_tokens.detach() if self.mlm_image_source == "clean_detached" else clean_image_tokens
             text_fused = self.fusion(self.image_proj(clean), text_tokens, text_padding)
+        if self.masked_view_weight > 0:  # M6: the masked caption is a less specific view of the same image
+            masked_emb = self.text.pool(masked_text_hidden, input_ids, attention_mask)
+            losses["masked_view"] = contrastive_loss(image_emb, masked_emb, self.logit_scale, self.gather)
         image_memory, image_padding = fused.image_memory, fused.image_padding
         text_memory, text_memory_padding = text_fused.text_memory, text_fused.text_padding
         if self.pooled_conditioning:  # M3: each decoder also reads the OTHER modality's clean pooled embedding

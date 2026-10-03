@@ -14,6 +14,7 @@ VARIANTS = {
     "m1_clean_detached": ("model.mlm_image_source=clean_detached",),
     "m2b_content": ("model.masking.text_mode=content",),
     "m3_pooled": ("model.pooled_conditioning=true",),
+    "m6_masked_view": ("model.loss.weights.masked_view=0.25",),
 }
 
 
@@ -77,6 +78,7 @@ def test_model_builds_from_a_config_without_the_new_keys():
     assert model.mlm_image_source == "masked"
     assert model.text_mode == "random"
     assert model.pooled_conditioning is False
+    assert model.masked_view_weight == 0.0
 
 
 @pytest.mark.parametrize("source", ["clean", "clean_detached"])
@@ -152,3 +154,28 @@ def test_m3_works_with_other_fusions(name, tokenizer):
 def test_m3_needs_both_modalities_and_reconstruction(name):
     with pytest.raises(ValueError, match="pooled_conditioning"):
         tiny_model(name, "model.pooled_conditioning=true")
+
+
+def test_m6_adds_a_weighted_masked_view_loss(tokenizer):
+    model = tiny_model("fusion_multilearner", "model.loss.weights.masked_view=0.25")
+    out = model(make_batch(tokenizer))
+    assert set(out) == {"loss", "loss_contrastive", "loss_mae", "loss_mlm", "loss_masked_view"}
+    expected = out["loss_contrastive"] + out["loss_mae"] + out["loss_mlm"] + 0.25 * out["loss_masked_view"]
+    assert torch.allclose(out["loss"], expected)
+    assert "loss_masked_view" not in tiny_model("fusion_multilearner")(make_batch(tokenizer))
+
+
+def test_m6_scores_the_masked_caption(tokenizer, monkeypatch):
+    """The loss uses the masked view: masked tokens' content does not move it, visible tokens' content does."""
+    model = tiny_model("fusion_multilearner", "model.loss.weights.masked_view=0.25").eval()
+    masks, run = recorder(model, monkeypatch)
+    batch = make_batch(tokenizer)
+    base = run(batch)[1]["loss_masked_view"]
+    assert torch.equal(run(change(batch, model, masks, "text", True))[1]["loss_masked_view"], base)
+    assert not torch.equal(run(change(batch, model, masks, "text", False))[1]["loss_masked_view"], base)
+
+
+@pytest.mark.parametrize("name", ["contrastive", "image_mae", "text_mlm"])
+def test_m6_needs_both_modalities_and_reconstruction(name):
+    with pytest.raises(ValueError, match="masked_view"):
+        tiny_model(name, "model.loss.weights.masked_view=0.25")
