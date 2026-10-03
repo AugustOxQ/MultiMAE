@@ -27,6 +27,9 @@ eval:            # used by evaluate.py
   split: test
   output: null   # optional path: also write the metrics to this JSON file
   extended_metrics: true   # ECCV Caption, CxC, COCO 1K and PMRP on the full COCO test split (also in train.py's test)
+  vwsd_dir: null           # SemEval-2023 VWSD test package (local /data/SSD/vwsd, node /local/wding/Dataset/vwsd); null skips
+  vwsd_lang: en
+  vwsd_prompt: "{phrase}"  # text query; {phrase} and {word} are filled in
 
 hydra:           # Hydra writes nothing to disk; the run folder under res/ holds config and logs
   run:

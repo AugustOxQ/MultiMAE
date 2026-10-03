@@ -112,6 +112,27 @@ def make_fake_coco(root: Path) -> tuple[Path, Path]:
     return images_dir, annotations_dir
 
 
+def make_fake_vwsd(root: Path) -> Path:
+    """A tiny VWSD test package: 3 English items over 12 images (JPEG RGB, PNG RGBA, grayscale JPEG)."""
+    images = root / "test_images_resized"
+    images.mkdir(parents=True)
+    g = torch.Generator().manual_seed(1)
+    names = []
+    for i in range(12):
+        name = f"image.{i}." + ("png" if i % 3 == 1 else "jpg")
+        pixels = (torch.rand(3, 64, 80, generator=g) * 255).byte().permute(1, 2, 0).numpy()
+        img = Image.fromarray(pixels, "RGB")
+        if i % 3 == 1:
+            img.convert("RGBA").save(images / name, "PNG")
+        else:
+            img.convert("L" if i % 3 == 2 else "RGB").save(images / name, "JPEG")
+        names.append(name)
+    rows = [("goal", "football goal", names[0:10]), ("seat", "eating seat", names[2:12]), ("bank", "river bank", names[1:11])]
+    (root / "en.test.data.v1.1.txt").write_text("".join(f"{w}\t{p}\t" + "\t".join(c) + "\n" for w, p, c in rows))
+    (root / "en.test.gold.v1.1.txt").write_text(f"{names[3]}\n{names[11]}\n{names[1]}\n")
+    return root
+
+
 def run_train(cwd: Path, fake_coco, *overrides: str, nproc: int = 1, script: str = "train.py") -> subprocess.CompletedProcess:
     """Run train.py (or evaluate.py) on the fake COCO with the tiny CLIP on CPU, from `cwd`.
 

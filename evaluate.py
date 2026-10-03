@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 from mmae.data import CocoRetrieval, Collator, build_image_transform
 from mmae.engine.eccv import build_extended_metrics
 from mmae.engine.retrieval import encode_retrieval_set, retrieval_metrics
+from mmae.engine.vwsd import evaluate_vwsd
 from mmae.models import MultiMAE
 from mmae.models.backbones import processor_name
 from mmae.utils.logging import setup_logging
@@ -71,6 +72,12 @@ def main(cfg: DictConfig) -> None:
     if accelerator.is_main_process:
         if extended is not None:
             metrics.update(extended(images, captions))
+        if cfg.eval.get("vwsd_dir"):
+            metrics.update(evaluate_vwsd(
+                accelerator.unwrap_model(model), cfg.eval.vwsd_dir, build_image_transform(processor),
+                Collator(processor, max_text_len), lang=cfg.eval.vwsd_lang, prompt=cfg.eval.vwsd_prompt,
+                batch_size=cfg.train.eval_batch_size, num_workers=cfg.train.num_workers, device=accelerator.device,
+            ))
         log.info("%s retrieval on %d images: %s", split, len(dataset),
                  ", ".join(f"{k}={v:.2f}" for k, v in metrics.items()))
         if run_dir is not None:
