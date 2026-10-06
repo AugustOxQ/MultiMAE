@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stage 1 queue of the multilearner line (spec docs/superpowers/specs/2026-10-03-improve-multilearner-design.md,
 # section 6). Every 5 minutes: pull each finished run (a failed one goes back to the front of the queue once), then
-# fill every free GPU on node403 and node405 with the next line of queue.txt. Launches run from a pinned git
+# fill every free GPU on $NODES with the next line of queue.txt. Launches run from a pinned git
 # worktree ($WT, its res/ a symlink to the main checkout's), so commits in the main checkout never move the
 # launch commit; each queue line names the commit it runs at (it must already be synced to both nodes).
 #
@@ -22,11 +22,11 @@ LOG=$DIR/queue.log
 QUEUE=$DIR/queue.txt
 RUNNING=$DIR/running.txt
 DONE=$DIR/done.txt
-NODES="node403 node405"
-DIAG_NODE=node403
+NODES="node405 node411"   # node403 reservation lost on 2026-10-05; node411 replaces it (no baseline checkpoints there)
+DIAG_NODE=node403   # holds the Stage 0 baseline checkpoints; gone since 2026-10-05, so diag* lines wait
 touch "$QUEUE" "$RUNNING" "$DONE"
 
-log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
+log() { echo "$(TZ=Europe/Amsterdam date '+%F %T') $*" >> "$LOG"; }
 
 result() {  # <key> : print RESULT[key] from stdin (lists joined by spaces, missing -> empty)
   "$PY" -c 'import json, sys
@@ -88,13 +88,15 @@ while true; do
         # first line eligible for this node: diag* lines only on $DIAG_NODE
         lineno=$(awk -v node="$node" -v dnode="$DIAG_NODE" '$2 !~ /^diag/ || node == dnode {print NR; exit}' "$QUEUE")
         [ -z "$lineno" ] && break
-        read -r sha name seed attempt overrides < <(sed -n "${lineno}p" "$QUEUE")
+        line_text=$(sed -n "${lineno}p" "$QUEUE")
+        read -r sha name seed attempt overrides <<< "$line_text"
         tag=$(launch "$node" "$sha" "$name" "$seed" $overrides)
         if [ -z "$tag" ]; then
           log "launch $name seed=$seed on $node failed: $(tail -n 3 "$DIR/.launch.out" | tr '\n' ' ' | cut -c1-300)"
           break  # retry next round
         fi
-        sed -i "${lineno}d" "$QUEUE"
+        # remove the launched line by its text, not its number: queue.txt may be edited while a launch runs
+        awk -v t="$line_text" '!done && $0 == t {done = 1; next} {print}' "$QUEUE" > "$QUEUE.tmp" && mv "$QUEUE.tmp" "$QUEUE"
         echo "$tag $node $sha $name $seed $attempt $overrides" >> "$RUNNING"
         log "LAUNCHED $tag on $node: $name seed=$seed attempt=$attempt at $sha ($overrides)"
         free=$((free - 1))
