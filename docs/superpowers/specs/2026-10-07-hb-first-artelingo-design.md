@@ -29,6 +29,7 @@ retrieval embedding (H-a). This spec tests the decoder for the first time:
 | AL-28 tenth label | "other" (0.6% of votes) is merged into "something else"; a sensitivity check drops it. |
 | "something else" | Kept as the ninth class in the primary metric; a sensitivity check renormalises over the 8 named emotions. |
 | Emotion slot in training | Always hidden: the emotion is only ever a prediction target, never an input; the text tower never sees it. |
+| Emotion loss weight (amended 2026-10-07) | A separate term with the same fixed weight, 0.07, in every decoder arm (section 5.1), instead of one more target inside the MLM mean, whose share differed between ML-80 and Par-cap. |
 | D4 decision rule | Two co-primary metrics (JSD, entropy Spearman), pre-registered in section 7. |
 | ML-80 in D4 | Both versions: image decoder off (ML-80, primary) and on (ML-80+MAE, secondary). On COCO at 80% the MAE loss changed nothing (ECCV mAP@R 38.00 vs 37.87, 3 seeds each). |
 | Staging | Launch first: the training path is built, tested and launched before the readouts; the readouts are written while wave 1 trains; a gate on wave 1's checkpoints precedes wave 2. |
@@ -86,9 +87,15 @@ reference below never scores against itself. Paintings with fewer than 20 non-En
   queries and their position embeddings are unchanged;
 - its output goes through a new linear head to 9 logits (the caption head keeps the CLIP vocabulary);
 - the emotion has no input token and no text-tower position: it is always a target (decision: always hidden);
-- its cross-entropy over the 9 classes joins the MLM mean as one more masked target per caption:
-  `loss_mlm = (sum of masked-token CE + sum of emotion CE) / (number of masked tokens + number of captions)`.
-  Both parts are also logged on their own (`loss_mlm_tokens`, `loss_emotion`).
+- its cross-entropy over the 9 classes is a separate loss term with one fixed weight in every arm:
+  `loss = w_c loss_contrastive + w_mae loss_mae + w_mlm loss_mlm + w_e loss_emotion`, with `loss_mlm` the mean
+  cross-entropy over the masked caption tokens (unchanged) and `loss_emotion` the mean emotion cross-entropy over
+  the captions, `w_e = model.loss.weights.emotion = 0.07`.
+  *Amended 2026-10-07 (user decision after the final code review).* The first version folded the emotion into the
+  MLM mean as one more target per caption. With 16.4 real tokens per train caption, that gave the emotion about 7.1%
+  of the MLM term in ML-80 (13 hidden tokens) but 5.75% in Par-cap (all 16 hidden), so ML-80's emotion slot trained
+  about 23% harder than the captioner it is compared against, tilting the D4 test toward H-b. 0.07 keeps ML-80's
+  former effective share (one target among about 14) and is the same for every decoder arm.
 
 Batches carry `emotion` (B,) long; a model with `emotion_head` raises if it is missing. COCO batches carry none.
 
