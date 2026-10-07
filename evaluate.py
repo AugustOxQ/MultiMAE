@@ -17,6 +17,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from mmae.data import Collator, build_image_transform, build_retrieval
+from mmae.data.factory import dataset_name
 from mmae.engine.eccv import build_extended_metrics
 from mmae.engine.retrieval import encode_retrieval_set, retrieval_metrics
 from mmae.engine.vwsd import evaluate_vwsd
@@ -40,6 +41,10 @@ def main(cfg: DictConfig) -> None:
     if run_dir is not None:
         run_cfg = OmegaConf.load(run_dir / "config.yaml")
         model_cfg, max_text_len = run_cfg.model, run_cfg.data.max_text_len
+        if dataset_name(cfg.data) != dataset_name(run_cfg.data):
+            raise SystemExit(
+                f"dataset mismatch: {run_dir} was trained on {dataset_name(run_cfg.data)} but data selects "
+                f"{dataset_name(cfg.data)}; pass the run's data group (e.g. data=artelingo)")
     else:
         model_cfg, max_text_len = cfg.model, cfg.data.max_text_len
     if set(model_cfg.modalities) != {"image", "text"}:

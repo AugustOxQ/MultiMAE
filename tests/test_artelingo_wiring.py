@@ -69,3 +69,55 @@ def test_extended_metrics_guard_skips_artelingo(fake_artelingo):
     images, annotations, heldout = fake_artelingo
     cfg = compose_cfg("data=artelingo", f"data.annotations_dir={annotations}", "eval.extended_metrics=true")
     assert build_extended_metrics(cfg, "test", True) is None
+
+
+def test_default_heldout_list_is_applied(fake_artelingo):
+    """With no data.heldout_file (what the runs use) the packaged ArtELingo-28 list holds paintings out of train and
+    val but not test."""
+    from mmae.data.artelingo import heldout_paintings
+
+    images, annotations, _ = fake_artelingo
+    first, second = sorted(heldout_paintings())[:2]
+    rename = {"artelingo_train.json": {"p0": first}, "artelingo_val.json": {"v0": second},
+              "artelingo_val_retrieval.json": {"v0": second},
+              "artelingo_test.json": {"t0": first}, "artelingo_test_retrieval.json": {"t0": first}}
+    for name, mapping in rename.items():
+        path = annotations / name
+        items = json.loads(path.read_text())
+        for item in items:
+            item["painting"] = mapping.get(item["painting"], item["painting"])
+        path.write_text(json.dumps(items))
+    transform = build_image_transform("openai/clip-vit-base-patch32")
+    dcfg = compose_cfg("data=artelingo", f"data.images_dir={images}", f"data.annotations_dir={annotations}").data
+    assert dcfg.heldout_file is None
+    train, val_pairs = build_pairs(dcfg, "train", transform, None), build_pairs(dcfg, "val", transform, None)
+    val_retrieval, test_retrieval = build_retrieval(dcfg, "val", transform, None), build_retrieval(dcfg, "test", transform, None)
+    assert len(train) == 10 and len(val_pairs) == 10 and len(val_retrieval) == 2  # p0 / v0 dropped
+    assert not any("p0.jpg" in image for image, _, _ in train.pairs)
+    assert not any("v0.jpg" in image for image, _, _ in val_pairs.pairs)
+    assert not any("v0.jpg" in image for image, _ in val_retrieval.items)
+    assert any("t0.jpg" in image for image, _ in test_retrieval.items) and len(test_retrieval) == 3
+
+
+def test_evaluate_refuses_a_run_evaluated_on_the_wrong_dataset(tmp_path, fake_artelingo, fake_coco):
+    """evaluate.py eval.run_dir=<ArtELingo run> without data=artelingo must not silently score COCO."""
+    from omegaconf import OmegaConf
+
+    from helpers import run_train
+    from mmae.models import MultiMAE
+    from mmae.models.backbones import TINY_CLIP
+
+    run_cfg = compose_cfg("data=artelingo", "model=fusion_multilearner", f"model.backbone.pretrained={TINY_CLIP}")
+    run_dir = tmp_path / "res" / "run"
+    (run_dir / "checkpoints").mkdir(parents=True)
+    OmegaConf.save(run_cfg, run_dir / "config.yaml")
+    (run_dir / "run.json").write_text("{}")
+    model = MultiMAE(run_cfg.model, max_text_len=run_cfg.data.max_text_len)
+    torch.save({"model": model.state_dict()}, run_dir / "checkpoints" / "best.pt")
+
+    wrong = run_train(tmp_path, fake_coco, f"eval.run_dir={run_dir}", script="evaluate.py")
+    assert wrong.returncode != 0 and "dataset mismatch" in wrong.stderr, wrong.stderr[-2000:]
+    assert "eval" not in json.loads((run_dir / "run.json").read_text())
+    right = run_train_artelingo(tmp_path, fake_artelingo, f"eval.run_dir={run_dir}", script="evaluate.py")
+    assert right.returncode == 0, right.stderr[-3000:]
+    assert "test" in json.loads((run_dir / "run.json").read_text())["eval"]

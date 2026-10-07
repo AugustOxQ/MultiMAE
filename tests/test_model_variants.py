@@ -66,7 +66,10 @@ def test_each_decoder_ignores_its_own_masked_content(variant, tokenizer, monkeyp
     batch = variant_batch(tokenizer, variant)
     base = run(batch)[0]
     assert torch.equal(run(change(batch, model, masks, "image", True))[0]["image_decoder"], base["image_decoder"])
-    assert torch.equal(run(change(batch, model, masks, "text", True))[0]["text_decoder"], base["text_decoder"])
+    masked_text = run(change(batch, model, masks, "text", True))[0]
+    assert torch.equal(masked_text["text_decoder"], base["text_decoder"])
+    if "text_decoder_prefix" in base:  # the emotion slot reads no masked caption content either
+        assert torch.equal(masked_text["text_decoder_prefix"], base["text_decoder_prefix"])
     assert not torch.equal(run(change(batch, model, masks, "image", False))[0]["image_decoder"], base["image_decoder"])
     if variant not in NO_VISIBLE_TEXT:
         assert not torch.equal(run(change(batch, model, masks, "text", False))[0]["text_decoder"], base["text_decoder"])
@@ -192,10 +195,14 @@ def test_parcap_text_decoder_sees_no_caption_content(tokenizer, monkeypatch):
     model = tiny_model("fusion_multilearner", *VARIANTS["parcap"]).eval()
     masks, run = recorder(model, monkeypatch)
     batch = add_emotion(make_batch(tokenizer))
-    base = run(batch)[0]["text_decoder"]
+    first = run(batch)[0]
+    base = first["text_decoder"]
     real = batch["attention_mask"].bool() & ~batch["special_tokens_mask"].bool()
     assert torch.equal(masks["token"], real)
     other = dict(batch, input_ids=torch.where(real, torch.randint(1000, 40000, batch["input_ids"].shape), batch["input_ids"]))
-    assert torch.equal(run(other)[0]["text_decoder"], base)
+    other_out = run(other)[0]
+    assert torch.equal(other_out["text_decoder"], base)
+    assert "text_decoder_prefix" in first  # the emotion slot is captured and also blind to the caption
+    assert torch.equal(other_out["text_decoder_prefix"], first["text_decoder_prefix"])
     noisy = dict(batch, pixel_values=batch["pixel_values"] + torch.randn_like(batch["pixel_values"]))
     assert not torch.equal(run(noisy)[0]["text_decoder"], base)

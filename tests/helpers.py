@@ -178,7 +178,7 @@ ARTELINGO_EMOTIONS = ("amusement", "awe", "contentment", "excitement", "anger", 
 def make_fake_artelingo(root: Path) -> tuple[Path, Path, Path]:
     """A tiny ArtELingo tree: 6 train paintings (2 captions each, p5 held out), 3 val and 3 test paintings with 5
     captions each (v2 and t1 held out), per-caption files with emotions and 5-caption retrieval files, a held-out
-    list, one grayscale and one PNG-as-RGBA painting. Returns (images_dir, annotations_dir, heldout_file)."""
+    list; every painting is a JPEG, one of them grayscale. Returns (images_dir, annotations_dir, heldout_file)."""
     images_dir, annotations_dir = root / "wikiart", root / "artelingo"
     (images_dir / "Style_A").mkdir(parents=True)
     annotations_dir.mkdir(parents=True)
