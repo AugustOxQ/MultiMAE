@@ -3,12 +3,12 @@ validation labels for temperature fitting, train histograms for the probe and th
 and the D7 test captions."""
 from __future__ import annotations
 
+import csv as csvlib
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 from mmae.data.artelingo import EMOTION_INDEX, SPLIT_FILES, read_json
 
@@ -37,15 +37,15 @@ def _histograms(items: list[dict], keep) -> tuple[Paintings, np.ndarray]:
 
 def _al28_items(csv: str | Path) -> list[dict]:
     """The non-English AL-28 votes as items; 'other' is merged into 'something else' and flagged."""
-    frame = pd.read_csv(csv, usecols=["painting", "emotion", "language", "image_name"])
-    frame = frame[frame.language.str.lower() != "english"]
-    other = (frame.emotion == "other").tolist()
-    frame = frame.assign(emotion=frame.emotion.replace(AL28_MERGE))
-    unknown = set(frame.emotion) - set(EMOTION_INDEX)
+    with open(csv, newline="", encoding="utf-8") as handle:
+        rows = [r for r in csvlib.DictReader(handle) if r["language"].lower() != "english"]
+    other = [r["emotion"] == "other" for r in rows]
+    emotions = [AL28_MERGE.get(r["emotion"], r["emotion"]) for r in rows]
+    unknown = set(emotions) - set(EMOTION_INDEX)
     if unknown:
         raise ValueError(f"unknown AL-28 labels {sorted(unknown)}")
-    return [{"painting": p, "emotion": e, "image": i, "other": o}
-            for p, e, i, o in zip(frame.painting, frame.emotion, frame.image_name, other)]
+    return [{"painting": r["painting"], "emotion": e, "image": r["image_name"], "other": o}
+            for r, e, o in zip(rows, emotions, other)]
 
 
 def al28_targets(csv: str | Path = AL28_CSV, min_votes: int = 20, drop_other: bool = False) -> tuple[Paintings, np.ndarray]:

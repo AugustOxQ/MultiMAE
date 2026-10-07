@@ -42,3 +42,23 @@ def test_test_captions(fake_artelingo):
     _, annotations, _ = fake_artelingo
     caps = data.test_captions(annotations)
     assert len(caps) == 15 and set(caps[0]) == {"painting", "image", "caption", "emotion"}
+
+
+REAL_AL28 = "/data/PDD/artelingo/ArtELingo/semeval-artelingo28/artelingo28_public_noworkerid_split.csv"
+
+
+def test_al28_items_match_the_pandas_reference_on_the_real_csv():
+    import os
+
+    import pytest
+    pd = pytest.importorskip("pandas")
+    if not os.path.exists(REAL_AL28):
+        pytest.skip("real AL-28 CSV missing")
+    frame = pd.read_csv(REAL_AL28, usecols=["painting", "emotion", "language", "image_name"])
+    frame = frame[frame.language.str.lower() != "english"]
+    other = (frame.emotion == "other").tolist()
+    frame = frame.assign(emotion=frame.emotion.replace(data.AL28_MERGE))
+    reference = [{"painting": p, "emotion": e, "image": i, "other": o}
+                 for p, e, i, o in zip(frame.painting, frame.emotion, frame.image_name, other)]
+    items = data._al28_items(REAL_AL28)
+    assert len(items) > 0 and items == reference
