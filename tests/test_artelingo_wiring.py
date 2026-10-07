@@ -60,7 +60,7 @@ def test_every_arm_trains_on_artelingo(arm, tmp_path, fake_artelingo):
     assert "test/retrieval/rsum" in test
     assert not any(k.startswith("test/eccv") for k in test)
     if arm != "C":
-        assert "test/loss_emotion" in test and "test/loss_mlm_tokens" in test
+        assert "test/loss_emotion" in test
 
 
 def test_extended_metrics_guard_skips_artelingo(fake_artelingo):

@@ -29,22 +29,31 @@ def test_query_decoder_prefix_shapes_and_backward_compatibility():
     assert not any(n.startswith("prefix") for n, _ in plain.named_parameters())
 
 
-def test_emotion_loss_joins_the_mlm_mean(tokenizer, monkeypatch):
+def test_emotion_loss_is_a_separate_weighted_term(tokenizer, monkeypatch):
     model = tiny_model("fusion_multilearner", *ML80).eval()
     masks, run = recorder(model, monkeypatch)
     batch = add_emotion(make_batch(tokenizer))
     captured, out, _ = run(batch)
     token_mask = masks["token"]
     logits, emotion_logits = captured["text_decoder"], captured["text_decoder_prefix"][:, 0]
-    token_ce = F.cross_entropy(logits[token_mask].float(), batch["input_ids"][token_mask], reduction="sum")
-    emotion_ce = F.cross_entropy(emotion_logits.float(), batch["emotion"], reduction="sum")
-    n, b = token_mask.sum(), batch["emotion"].shape[0]
-    torch.testing.assert_close(out["loss_mlm"], (token_ce + emotion_ce) / (n + b))
-    torch.testing.assert_close(out["loss_mlm_tokens"], token_ce / n)
-    torch.testing.assert_close(out["loss_emotion"], emotion_ce / b)
+    token_ce = F.cross_entropy(logits[token_mask].float(), batch["input_ids"][token_mask])
+    emotion_ce = F.cross_entropy(emotion_logits.float(), batch["emotion"])
+    torch.testing.assert_close(out["loss_mlm"], token_ce)
+    torch.testing.assert_close(out["loss_emotion"], emotion_ce)
     weights = model.loss_weights
-    expected = weights["contrastive"] * out["loss_contrastive"] + weights["mae"] * out["loss_mae"] + weights["mlm"] * out["loss_mlm"]
+    assert weights["emotion"] == 0.07
+    expected = (weights["contrastive"] * out["loss_contrastive"] + weights["mae"] * out["loss_mae"]
+                + weights["mlm"] * out["loss_mlm"] + 0.07 * out["loss_emotion"])
     torch.testing.assert_close(out["loss"], expected)
+    assert "loss_mlm_tokens" not in out
+
+
+def test_emotion_head_needs_an_emotion_weight():
+    cfg = compose_cfg("model=fusion_multilearner", f"model.backbone.pretrained={TINY_CLIP}", *ML80)
+    plain = OmegaConf.to_container(cfg.model)
+    plain["loss"]["weights"].pop("emotion")
+    with pytest.raises(ValueError, match="loss.weights.emotion"):
+        MultiMAE(OmegaConf.create(plain), max_text_len=cfg.data.max_text_len)
 
 
 def test_emotion_is_a_target_never_an_input(tokenizer, monkeypatch):

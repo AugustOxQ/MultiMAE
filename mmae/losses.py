@@ -70,22 +70,6 @@ def mlm_loss(logits: torch.Tensor, input_ids: torch.Tensor, token_mask: torch.Te
     return F.cross_entropy(logits[token_mask].float(), input_ids[token_mask])
 
 
-def mlm_emotion_loss(
-    logits: torch.Tensor, input_ids: torch.Tensor, token_mask: torch.Tensor,
-    emotion_logits: torch.Tensor, emotion: torch.Tensor,
-) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-    """MLM with the annotator's emotion as one more hidden target per caption (H-b spec 2026-10-07, 5.1): the
-    mean cross-entropy over the masked tokens and the emotion slots together. Also returns, for logging only,
-    loss_mlm_tokens (mean over masked tokens, 0 if none) and loss_emotion (mean over captions)."""
-    if token_mask.any():
-        token_ce = F.cross_entropy(logits[token_mask].float(), input_ids[token_mask], reduction="sum")
-    else:
-        token_ce = logits.float().sum() * 0.0
-    emotion_ce = F.cross_entropy(emotion_logits.float(), emotion, reduction="sum")
-    n_tokens, n_captions = token_mask.sum(), emotion.shape[0]
-    total = (token_ce + emotion_ce) / (n_tokens + n_captions)
-    parts = {
-        "loss_mlm_tokens": (token_ce / n_tokens.clamp(min=1)).detach(),
-        "loss_emotion": (emotion_ce / n_captions).detach(),
-    }
-    return total, parts
+def emotion_loss(emotion_logits: torch.Tensor, emotion: torch.Tensor) -> torch.Tensor:
+    """Mean 9-way cross-entropy of the H-b emotion slot over the captions (spec 2026-10-07, 5.1, amended)."""
+    return F.cross_entropy(emotion_logits.float(), emotion)

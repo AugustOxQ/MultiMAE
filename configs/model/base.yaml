@@ -36,6 +36,7 @@ loss:
     contrastive: 1.0
     mae: 1.0
     mlm: 1.0
+    emotion: 0.07          # H-b emotion slot (spec 2026-10-07, 5.1, amended): the same weight in every decoder arm; used only with emotion_head
     masked_view: 0.0       # M6: InfoNCE of the masked caption's pooled embedding against the clean images
   gather: true           # contrastive negatives from the global batch under multi-GPU
   norm_pix: true         # MAE target: per-patch normalized pixels

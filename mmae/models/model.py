@@ -15,7 +15,7 @@ import torch
 from omegaconf import DictConfig
 from torch import nn
 
-from mmae.losses import contrastive_loss, mae_loss, mlm_emotion_loss, mlm_loss
+from mmae.losses import contrastive_loss, emotion_loss, mae_loss, mlm_loss
 from mmae.models.backbones import build_backbone
 from mmae.models.decoders import QueryDecoder
 from mmae.models.fusion import append_memory_token, build_fusion
@@ -79,6 +79,8 @@ class MultiMAE(nn.Module):
         self.emotion_head = bool(cfg.get("emotion_head", False))
         if self.emotion_head and not (self.reconstruction and self.use_text):
             raise ValueError("emotion_head needs the text decoder (reconstruction with the text modality)")
+        if self.emotion_head and "emotion" not in self.loss_weights:
+            raise ValueError("model.emotion_head=true needs model.loss.weights.emotion")
 
         towers = build_backbone(cfg.backbone.type, cfg.backbone.pretrained, cfg.pooling)
         dim, dec = int(cfg.fusion.dim), cfg.decoder
@@ -195,22 +197,18 @@ class MultiMAE(nn.Module):
         if self.use_image:
             pred = self.image_decoder(image_memory, image_padding)
             losses["mae"] = mae_loss(pred, images, patch_mask, self.vision.patch_size, norm_pix=self.norm_pix)
-        logged: dict[str, torch.Tensor] = {}
         if self.use_text:
             decoded = self.text_decoder(text_memory, text_memory_padding, query_padding=text_padding)
+            logits = decoded
             if self.emotion_head:
                 if "emotion" not in batch:
                     raise KeyError("model.emotion_head=true needs batch['emotion'] (ArtELingo data)")
                 logits, emotion_logits = decoded
-                losses["mlm"], logged = mlm_emotion_loss(
-                    logits, input_ids, token_mask, emotion_logits[:, 0], batch["emotion"]
-                )
-            else:
-                losses["mlm"] = mlm_loss(decoded, input_ids, token_mask)
+                losses["emotion"] = emotion_loss(emotion_logits[:, 0], batch["emotion"])
+            losses["mlm"] = mlm_loss(logits, input_ids, token_mask)
 
         out = {f"loss_{name}": value for name, value in losses.items()}
         out["loss"] = sum(self.loss_weights[name] * value for name, value in losses.items())
-        out.update(logged)  # logged only; not part of the total
         return out
 
     def param_groups(
