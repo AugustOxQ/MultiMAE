@@ -20,7 +20,14 @@ MIN_SEEDS = 3
 
 def arm_of(meta: dict, folder) -> str:
     if not meta.get("decoder"):
-        return "c"
+        # C is the contrastive-only model; anything else without a decoder is not an arm of this test
+        if meta.get("model_name") == "contrastive" or meta.get("reconstruction") is False:
+            return "c"
+        if "model_name" not in meta and "reconstruction" not in meta and str(meta.get("arm", "")).startswith("hb_c"):
+            return "c"  # metas written before model_name existed: only the D4 run name
+        raise ValueError(f"{folder}: a run without a decoder that is not the contrastive model "
+                         f"(model_name={meta.get('model_name')!r}, reconstruction={meta.get('reconstruction')!r}, "
+                         f"arm={meta.get('arm')!r})")
     source, ratio, mae = meta.get("mlm_image_source"), meta.get("text_ratio"), meta.get("mae_weight")
     if mae is not None:
         if source == "masked" and ratio == 0.8:
@@ -38,9 +45,12 @@ def primary_name(arm: str, meta: dict) -> str:
 def load_runs(root: str | Path) -> tuple[dict[str, dict[int, dict]], list[dict]]:
     runs, listing = {}, []
     for folder in sorted(Path(root).iterdir()):
-        if not (folder / "meta.json").is_file():
-            continue
+        if not (folder.is_dir() and (folder / "meta.json").is_file()):
+            continue  # a stray file such as length_grid.json
         enc = analysis.load_encoded(folder)
+        if enc["meta"].get("run_status") != "completed":
+            raise ValueError(f"{folder}: run_status is {enc['meta'].get('run_status')!r}, not 'completed'; "
+                             "the tables only use finished runs")
         arm, seed = arm_of(enc["meta"], folder), enc["meta"].get("seed")
         if seed is None or seed in runs.get(arm, {}):
             raise ValueError(f"{folder}: missing or duplicate seed {seed!r} for arm {arm}")
@@ -51,6 +61,12 @@ def load_runs(root: str | Path) -> tuple[dict[str, dict[int, dict]], list[dict]]
     if not runs:
         raise ValueError(f"no run folders (with meta.json) under {root}")
     encs = [e for by_seed in runs.values() for e in by_seed.values()]
+    for e in encs:  # identical encode settings across runs
+        m = e["meta"]
+        if m.get("views") != 16 or m.get("lengths") != encs[0]["meta"].get("lengths") or m.get("bf16") not in (False, None):
+            raise ValueError(f"{e['_folder']}: encode settings differ (views={m.get('views')!r}, bf16={m.get('bf16')!r}, "
+                             f"lengths equal to the first run's: {m.get('lengths') == encs[0]['meta'].get('lengths')}); "
+                             "need 16 views, float32 and the same length grid in every run")
     for e in encs[1:]:
         if e["meta"]["al28"] != encs[0]["meta"]["al28"] or not np.array_equal(e["al28_counts"], encs[0]["al28_counts"]):
             raise ValueError("runs disagree on the AL-28 paintings or counts")
@@ -152,9 +168,15 @@ def human_references(names, counts, csv, min_votes, annotations_dir, cuts) -> di
 
 
 def strongest_probes(arms: dict, seeds: list[int]) -> dict[int, dict]:
-    """Per seed, the arm whose probe has the lowest validation NLL (at T = 1, as fitted); ties go to ARMS order."""
-    return {s: min(((arm, arms[arm][s]["probe"]["val_nll"]) for arm in ARMS if arm in arms), key=lambda x: x[1])
-            for s in seeds}
+    """Per seed, the arm whose probe has the lowest TEMPERATURE-FITTED validation NLL (readouts["probe_full"]["val_nll"],
+    after the temperature fit, the probe's own calibrated number); ties go to ARMS order. {seed: {"arm", "val_nll"
+    (post-temperature), "val_nll_t1" (the T = 1 selection NLL of the probe fit)}}."""
+    out = {}
+    for s in seeds:
+        arm = min((a for a in ARMS if a in arms), key=lambda a: arms[a][s]["readouts"]["probe_full"]["val_nll"])
+        out[s] = {"arm": arm, "val_nll": arms[arm][s]["readouts"]["probe_full"]["val_nll"],
+                  "val_nll_t1": arms[arm][s]["probe"]["val_nll"]}
+    return out
 
 
 def pool_note(present) -> str | None:
@@ -180,7 +202,7 @@ def pre_registered_tests(dist, seeds, best, target, B, pool=None) -> tuple[dict,
     ml_seeds, pc_seeds = seeds["ml80"], seeds["parcap"]
     a = [dist["ml80"][s][primary_name("ml80", seeds["meta"]["ml80"])] for s in ml_seeds]
     comparators = {"parcap": ([dist["parcap"][s]["full"] for s in pc_seeds], {"ml80": ml_seeds, "parcap": pc_seeds}),
-                   "probe": ([dist[best[s][0]][s]["probe_full"] for s in seeds["complete"]],
+                   "probe": ([dist[best[s]['arm']][s]["probe_full"] for s in seeds["complete"]],
                              {"ml80": ml_seeds, "probe (complete seeds)": seeds["complete"]})}
     raw = {(m, c): bootstrap.paired_bootstrap(a, b, target, m, B=B, seed=0)
            for m in bootstrap.METRICS for c, (b, _) in comparators.items()}
@@ -252,9 +274,11 @@ def d6_tables(runs, arms, dist, best, seeds, target, B, pool=None) -> dict:
                      "ci_low": lo, "ci_high": hi, "interval_includes_zero": bool(lo <= 0 <= hi),
                      "nan_draws": int(np.isnan(draws).sum())}
         out["arms"][arm] = res
-    controls = {"parcap_views16": [pair("parcap", s, "views16") for s in seeds["parcap"]],
+    controls = {"parcap_views1": [pair("parcap", s, "views1") for s in seeds["parcap"]],
+                "parcap_views4": [pair("parcap", s, "views4") for s in seeds["parcap"]],
+                "parcap_views16": [pair("parcap", s, "views16") for s in seeds["parcap"]],
                 "c_prompt_views16": [pair("c", s, "prompt_views16") for s in seeds.get("c", [])],
-                "strongest_probe_views16": [pair(best[s][0], s, "probe_views16") for s in seeds["complete"]]}
+                "strongest_probe_views16": [pair(best[s]['arm'], s, "probe_views16") for s in seeds["complete"]]}
     out["controls"] = {k: mean_pair(v) for k, v in controls.items() if v}
     out["missing_controls"] = [k for k, v in controls.items() if not v]
     out["probe_pool_note"] = pool
@@ -311,6 +335,10 @@ def d7_tables(runs, arms, seeds, B) -> dict:
                     row["no_image_benefit"] = bool(hi >= 0)
             rows[pattern] = row
         out["arms"][arm] = {"readout": name, "seeds": ss, "patterns": rows}
+    if "ml80" in out["arms"]:  # ML-80 kill: no image benefit at every j >= 2 pattern
+        flags = {p: out["arms"]["ml80"]["patterns"][p]["no_image_benefit"] for p in KILL_PATTERNS
+                 if "no_image_benefit" in out["arms"]["ml80"]["patterns"][p]}
+        out["kill"] = {"kill": len(flags) == len(KILL_PATTERNS) and all(flags.values()), "no_image_benefit": flags}
     return out
 
 
@@ -350,7 +378,7 @@ def build(encoded_root, annotations_dir=None, al28_csv=data.AL28_CSV, B: int = 1
         "runs": listing,
         "arms": {a: {str(s): v for s, v in by.items()} for a, by in arms.items()},
         "probes": {"per_arm": {a: {str(s): v["probe"] for s, v in by.items()} for a, by in arms.items()},
-                   "strongest": {str(s): {"arm": a, "val_nll": v} for s, (a, v) in best.items()}},
+                   "strongest": {str(s): v for s, v in best.items()}},
         "references": human_references(names, counts, al28_csv, min_votes, annotations_dir, cuts),
         "tests": {**tests, "secondary": secondary}, "decision": decision,
         "d6": d6_tables(runs, arms, dist, best, seeds, target, B, pool_note(present)),

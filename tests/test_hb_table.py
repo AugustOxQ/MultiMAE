@@ -47,6 +47,7 @@ def make_run(folder: Path, world, arm: str, seed: int, **meta_over):
               "train_counts": rng.multinomial(5, PRIOR, size=T_TRAIN), "prompts": rng.normal(size=(9, D)).astype(np.float32),
               "logit_scale": np.float32(10.0)}
     meta = {"run": folder.name, "arm": f"hb_{arm}", "seed": seed, "decoder": ARMS[arm] is not None, "views": V,
+            "run_status": "completed", "bf16": False, "model_name": "contrastive" if arm == "c" else "fusion_multilearner",
             "lengths": list(range(5, 14)), "al28": world["names"], "val": [], "train": []}
     if ARMS[arm]:
         source, ratio, mae = ARMS[arm]
@@ -137,7 +138,7 @@ def test_d6_has_k_and_controls(result):
         r = d6["arms"][arm]
         assert {"views1", "views4", "views16", "full", "mi", "k16_beats_k1"} <= set(r)
         assert r["mi"]["ci_low"] <= r["mi"]["spearman_mean"] <= r["mi"]["ci_high"] or r["mi"]["nan_draws"] > 0
-    assert set(d6["controls"]) == {"parcap_views16", "c_prompt_views16", "strongest_probe_views16"}
+    assert set(d6["controls"]) == {"parcap_views1", "parcap_views4", "parcap_views16", "c_prompt_views16", "strongest_probe_views16"}
 
 
 def test_d7_has_every_pattern(result):
@@ -192,7 +193,7 @@ def test_duplicate_seed_raises(world, tmp_path):
 
 
 def test_arm_of():
-    assert tables.arm_of({"decoder": False}, "f") == "c"
+    assert tables.arm_of({"decoder": False, "model_name": "contrastive"}, "f") == "c"
     assert tables.arm_of({"decoder": True, "mlm_image_source": "masked", "text_ratio": 0.8, "mae_weight": 0.0}, "f") == "ml80"
     assert tables.arm_of({"decoder": True, "mlm_image_source": "masked", "text_ratio": 0.8, "mae_weight": 1.0}, "f") == "ml80_mae"
     assert tables.arm_of({"decoder": True, "mlm_image_source": "clean", "text_ratio": 1.0, "mae_weight": 0.0}, "f") == "parcap"
@@ -333,3 +334,95 @@ def test_parcap_folder_with_encoder_style_meta_loads(world, tmp_path):
     np.savez(root / "parcap_s1" / "encode.npz", **z)
     with pytest.raises(ValueError, match="parcap_s1.*1 view"):
         tables.load_runs(root)
+
+
+def test_stray_file_in_root_is_ignored(world, tmp_path):
+    root = make_root(tmp_path / "enc", world, seeds=(1,), arms=("ml80", "parcap"))
+    (root / "length_grid.json").write_text("{}")
+    assert set(tables.load_runs(root)[0]) == {"ml80", "parcap"}
+
+
+def _edit_meta(root, folder, **kw):
+    path = root / folder / "meta.json"
+    meta = json.loads(path.read_text())
+    meta.update(kw)
+    path.write_text(json.dumps(meta))
+
+
+@pytest.mark.parametrize("status", ["running", None])
+def test_incomplete_run_is_refused(world, tmp_path, status):
+    root = make_root(tmp_path / "enc", world, seeds=(1,), arms=("ml80", "parcap"))
+    _edit_meta(root, "ml80_s1", run_status=status)
+    with pytest.raises(ValueError, match="ml80_s1.*completed"):
+        tables.load_runs(root)
+
+
+@pytest.mark.parametrize("edit", [{"views": 8}, {"bf16": True}, {"lengths": [5, 6, 7]}])
+def test_encode_settings_must_match(world, tmp_path, edit):
+    root = make_root(tmp_path / "enc", world, seeds=(1,), arms=("ml80", "parcap"))
+    _edit_meta(root, "parcap_s1", **edit)
+    with pytest.raises(ValueError, match="parcap_s1|ml80_s1"):
+        tables.load_runs(root)
+
+
+def test_c_identification_needs_the_contrastive_model():
+    nodec = {"decoder": False}
+    assert tables.arm_of({**nodec, "model_name": "contrastive"}, "f") == "c"
+    assert tables.arm_of({**nodec, "reconstruction": False}, "f") == "c"
+    assert tables.arm_of({**nodec, "arm": "hb_c"}, "f") == "c"  # old meta, the D4 run name
+    for bad in ({"model_name": "fusion_concat"}, {"arm": "hb_ml80"}, {"model_name": "fusion_concat", "arm": "hb_c"}, {}):
+        with pytest.raises(ValueError, match="contrastive"):
+            tables.arm_of({**nodec, **bad}, "f")
+
+
+def _arms_with_nll(t1, post):
+    """{arm: {seed 1: probe T=1 NLL and probe_full post-temperature NLL}}"""
+    return {a: {1: {"probe": {"val_nll": t1[a]}, "readouts": {"probe_full": {"val_nll": post[a]}}}} for a in t1}
+
+
+def test_strongest_probe_uses_the_temperature_fitted_nll():
+    t1 = {"ml80": 1.0, "parcap": 1.2, "c": 1.5}
+    post = {"ml80": 1.0, "parcap": 0.9, "c": 1.4}  # T = 1 order picks ML-80, post-temperature order picks Par-cap
+    best = tables.strongest_probes(_arms_with_nll(t1, post), [1])
+    assert best[1] == {"arm": "parcap", "val_nll": 0.9, "val_nll_t1": 1.2}
+
+
+def test_strongest_probe_json_has_both_nlls(result):
+    for v in result[0]["probes"]["strongest"].values():
+        assert {"arm", "val_nll", "val_nll_t1"} <= set(v)
+    assert "after temperature" in result[1]
+
+
+def test_d6_controls_include_parcap_k_1_4_16(result):
+    res, md = result
+    assert {"parcap_views1", "parcap_views4", "parcap_views16"} <= set(res["d6"]["controls"])
+    assert "Par-cap, 1 view" in md and "Par-cap, 4 views" in md
+
+
+def test_d7_kill_verdict_both_outcomes(world, tmp_path, result):
+    res, md = result
+    k = res["d7"]["kill"]
+    assert k["kill"] is False and set(k["no_image_benefit"]) == set(tables.KILL_PATTERNS) and not any(k["no_image_benefit"].values())
+    assert "ML-80 kill verdict" in md and "no kill" in md
+
+    def worse(z, rng):
+        out = z["d7_null"].astype(np.float64).copy()
+        out[np.arange(len(out)), :, :, z["d7_label"]] -= 3.0
+        return out
+
+    root = make_root(tmp_path / "enc", world, seeds=(1, 2), arms=("ml80", "parcap", "c"))
+    for s in (1, 2):
+        z = dict(np.load(root / f"ml80_s{s}" / "encode.npz"))
+        z["d7_real"] = worse(z, None).astype(np.float16)
+        np.savez(root / f"ml80_s{s}" / "encode.npz", **z)
+    k = tables.build(root, world["annotations"], world["csv"], B=300)["d7"]["kill"]
+    assert k["kill"] is True and all(k["no_image_benefit"].values())
+
+
+def test_table_script_missing_annotations_dir_warns(world, tmp_path):
+    root = make_root(tmp_path / "enc", world, seeds=(1,), arms=("ml80", "parcap", "c"))
+    r = subprocess.run([sys.executable, str(ROOT / "scripts" / "hb_table.py"), "--encoded-root", str(root), "--out", str(tmp_path / "o"),
+                        "--annotations-dir", str(tmp_path / "nope"), "--al28-csv", str(world["csv"]), "--B", "20"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0 and "English reference is skipped" in r.stderr
+    assert json.loads((tmp_path / "o" / "hb_d4.json").read_text())["references"]["english"] is None

@@ -21,14 +21,19 @@ PARCAP = ("model=fusion_multilearner", "model.emotion_head=true", "model.masking
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def make_run(tmp_path, name, *overrides):
+def make_run(tmp_path, name, *overrides, status="completed", epoch=7):
     torch.manual_seed(0)
     cfg = compose_cfg(*overrides, f"model.backbone.pretrained={TINY_CLIP}", "data=artelingo")
     model = MultiMAE(cfg.model, max_text_len=cfg.data.max_text_len)
     run = tmp_path / name
     (run / "checkpoints").mkdir(parents=True)
     OmegaConf.save(cfg, run / "config.yaml")
-    torch.save({"model": model.state_dict()}, run / "checkpoints" / "best.pt")
+    state = {"model": model.state_dict()}
+    if epoch is not None:
+        state["epoch"] = epoch
+    torch.save(state, run / "checkpoints" / "best.pt")
+    if status is not None:
+        (run / "run.json").write_text(json.dumps({"status": status}))
     return run
 
 
@@ -200,6 +205,8 @@ def test_script_smoke(tmp_path, fake_artelingo):
     folder = out / run.name
     meta = json.loads((folder / "meta.json").read_text())
     assert meta["mlm_image_source"] == "masked" and meta["text_ratio"] == 0.8 and meta["mae_weight"] == 0
+    assert meta["run_status"] == "completed" and meta["checkpoint_epoch"] == 7
+    assert meta["model_name"] == "fusion_multilearner" and meta["reconstruction"] is True
     assert len(meta["lengths"]) > 0 and meta["al28"] and meta["val"] and meta["train"]
     z = np.load(folder / "encode.npz")
     n_len = len(meta["lengths"])
@@ -207,3 +214,29 @@ def test_script_smoke(tmp_path, fake_artelingo):
     assert z["train_emb"].shape[0] == len(meta["train"]) and z["prompts"].shape[0] == 9
     assert z["d7_real"].shape[2] == 2 and "logit_scale" in z.files
     assert (out / "length_grid.json").is_file()
+
+
+def test_load_run_refuses_unfinished_runs(tmp_path):
+    for status in ("running", None):
+        run = make_run(tmp_path, f"r_{status}", *ML80, status=status)
+        with pytest.raises(ValueError, match=f"r_{status}.*{status!r}"):
+            encode.load_run(run, "cpu")
+    run = make_run(tmp_path, "r_run", *ML80, status="running", epoch=None)
+    model, _ = encode.load_run(run, "cpu", allow_incomplete=True)
+    assert model.run_status == "running" and model.checkpoint_epoch is None
+
+
+def test_script_refuses_unfinished_run_and_allows_with_flag(tmp_path, fake_artelingo):
+    images_dir, annotations, _ = fake_artelingo
+    run = make_run(tmp_path, "c", "model=contrastive", status="running")
+    csv_path = make_fake_al28(tmp_path / "al28.csv", {"p0": "Style_A/p0.jpg", "p1": "Style_A/p1.jpg"})
+    cmd = [sys.executable, str(ROOT / "scripts" / "hb_encode.py"), "--runs", str(run), "--out", str(tmp_path / "o"),
+           "--images-dir", str(images_dir), "--annotations-dir", str(annotations), "--al28-csv", str(csv_path),
+           "--min-votes", "10", "--workers", "0", "--views", "2", "--batch-size", "2"]
+    env = {**os.environ, "CUDA_VISIBLE_DEVICES": ""}
+    r = subprocess.run(cmd, env=env, capture_output=True, text=True, cwd=ROOT)
+    assert r.returncode != 0 and "'running'" in r.stderr and not (tmp_path / "o" / "c").exists()
+    r = subprocess.run(cmd + ["--allow-incomplete"], env=env, capture_output=True, text=True, cwd=ROOT)
+    assert r.returncode == 0, r.stderr[-3000:]
+    meta = json.loads((tmp_path / "o" / "c" / "meta.json").read_text())
+    assert meta["run_status"] == "running" and meta["model_name"] == "contrastive" and meta["reconstruction"] is False

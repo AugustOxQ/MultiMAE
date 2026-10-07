@@ -3,7 +3,8 @@
   python scripts/hb_gate.py --encoded <folder> [<folder> ...] [--annotations-dir DIR] [--json OUT]
 
 Exit codes: 0 all gated decoder runs pass; 1 a check failed; 2 no decoder run was gated; 3 a folder errored.
-Non-decoder runs are skipped.
+Non-decoder runs are skipped; paths that are not run folders (no meta.json) are ignored.
+The line shows each run's status; a non-completed run is only here if it was encoded with --allow-incomplete.
 """
 import argparse
 import json
@@ -24,10 +25,12 @@ def main(argv=None) -> int:
 
     results, failed, errored, gated = [], False, False, 0
     for folder in args.encoded:
+        if not (Path(folder).is_dir() and (Path(folder) / "meta.json").is_file()):
+            continue  # not a run folder (e.g. length_grid.json from the glob <out>/*)
         try:
             enc = analysis.load_encoded(folder)
             meta = enc["meta"]
-            head = f"{meta['arm']} {meta['seed']}"
+            head = f"{meta['arm']} {meta['seed']} [{meta.get('run_status')}]"
             if not meta["decoder"]:
                 print(f"{head} skip (no decoder)")
                 results.append({"folder": str(folder), "arm": meta["arm"], "seed": meta["seed"], "skipped": True})

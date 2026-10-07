@@ -50,7 +50,7 @@ def make_folder(path: Path, kind: str = "good", decoder: bool = True, with_train
             arrays[f"{pre}_dec_full"] = (z + noise[:, :1]).astype(np.float16)
     path.mkdir(parents=True)
     np.savez(path / "encode.npz", **arrays)
-    meta = {"run": path.name, "arm": "hb_ml80", "seed": 3, "decoder": decoder, "mlm_image_source": source,
+    meta = {"run": path.name, "arm": "hb_ml80", "seed": 3, "decoder": decoder, "mlm_image_source": source, "run_status": "completed",
             "views": V, "lengths": list(range(5, 14)), "al28": [], "val": [], "train": []}
     (path / "meta.json").write_text(json.dumps(meta))
     return prior
@@ -141,6 +141,7 @@ def test_gate_script_no_decoder_runs_exits_2(tmp_path):
 def test_gate_script_error_exits_3_and_continues(tmp_path):
     make_folder(tmp_path / "good")
     (tmp_path / "broken").mkdir()
+    (tmp_path / "broken" / "meta.json").write_text("{}")  # a run folder whose encode.npz is missing
     r = run_gate(tmp_path / "broken", tmp_path / "good")
     assert r.returncode == 3 and "ERROR" in r.stdout and "PASS" in r.stdout
 
@@ -168,3 +169,12 @@ def test_readout_layout_pins_view_and_length(tmp_path):
     for side, n in ((0, N), (1, P)):
         got = r["full"][side][..., 0]
         np.testing.assert_array_equal(got[5], [100 * 5 + l for l in range(L)])
+
+
+def test_gate_script_skips_non_run_paths(tmp_path):
+    make_folder(tmp_path / "good")
+    (tmp_path / "length_grid.json").write_text("{}")
+    (tmp_path / "empty").mkdir()
+    r = run_gate(tmp_path / "good", tmp_path / "length_grid.json", tmp_path / "empty", tmp_path / "missing")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "ERROR" not in r.stdout and "PASS" in r.stdout and "[completed]" in r.stdout

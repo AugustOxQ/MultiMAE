@@ -11,6 +11,7 @@ saved as float16."""
 from __future__ import annotations
 
 import contextlib
+import json
 from pathlib import Path
 
 import numpy as np
@@ -28,12 +29,25 @@ D7_PATTERNS = ["j0", "prefix1", "prefix2", "prefix4", "prefix8", "random1", "ran
 D7_SEED = 4321
 
 
-def load_run(run_dir: str | Path, device) -> tuple[MultiMAE, DictConfig]:
+def run_status(run_dir: str | Path, allow_incomplete: bool = False) -> str | None:
+    """The run's status from run.json; a run that did not complete is refused unless allow_incomplete (the queue
+    live-syncs intermediate checkpoints of running jobs)."""
+    path = Path(run_dir) / "run.json"
+    status = json.loads(path.read_text()).get("status") if path.is_file() else None
+    if status != "completed" and not allow_incomplete:
+        raise ValueError(f"{run_dir}: run status is {status!r}, not 'completed' (pass --allow-incomplete to encode it anyway)")
+    return status
+
+
+def load_run(run_dir: str | Path, device, allow_incomplete: bool = False) -> tuple[MultiMAE, DictConfig]:
+    """The model carries `run_status` and `checkpoint_epoch` (best.pt["epoch"], None if absent) for the meta file."""
     run_dir = Path(run_dir)
+    status = run_status(run_dir, allow_incomplete)
     cfg = OmegaConf.load(run_dir / "config.yaml")
     model = MultiMAE(cfg.model, max_text_len=cfg.data.max_text_len)
     state = torch.load(run_dir / "checkpoints" / "best.pt", map_location="cpu")
     model.load_state_dict(state["model"])
+    model.run_status, model.checkpoint_epoch = status, state.get("epoch")
     return model.to(device).eval(), cfg
 
 

@@ -72,6 +72,8 @@ def main() -> None:
     ap.add_argument("--d7-views", type=int, default=4)
     ap.add_argument("--skip-d7", action="store_true")
     ap.add_argument("--skip-train", action="store_true")
+    ap.add_argument("--allow-incomplete", action="store_true",
+                    help="encode runs whose run.json status is not 'completed' (their best.pt may be an intermediate sync)")
     ap.add_argument("--bf16", action="store_true", help="bf16 autocast on CUDA (default: float32, as in training)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -79,6 +81,10 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
 
     for run_dir in args.runs:  # fail early, before any model is loaded
+        try:
+            encode.run_status(run_dir, args.allow_incomplete)
+        except ValueError as e:
+            sys.exit(str(e))
         cfg = OmegaConf.load(Path(run_dir) / "config.yaml")
         images_dir = args.images_dir or cfg.data.images_dir
         annotations_dir = args.annotations_dir or cfg.data.annotations_dir
@@ -94,7 +100,7 @@ def main() -> None:
     for run_dir in args.runs:
         run_dir = Path(run_dir)
         log.info("run %s on %s", run_dir.name, device)
-        model, cfg = encode.load_run(run_dir, device)
+        model, cfg = encode.load_run(run_dir, device, args.allow_incomplete)
         images_dir = args.images_dir or cfg.data.images_dir
         annotations_dir = args.annotations_dir or cfg.data.annotations_dir
         max_text_len = int(cfg.data.max_text_len)
@@ -145,6 +151,8 @@ def main() -> None:
         meta = {
             "run": str(run_dir), "arm": OmegaConf.select(cfg, "wandb.name") or cfg.model.name,
             "seed": cfg.get("seed"), "decoder": decoder, "bf16": args.bf16,
+            "model_name": str(cfg.model.name), "reconstruction": bool(cfg.model.get("reconstruction", True)),
+            "run_status": model.run_status, "checkpoint_epoch": model.checkpoint_epoch,
             "mlm_image_source": str(cfg.model.get("mlm_image_source", "masked")) if decoder else None,
             "text_ratio": float(cfg.model.masking.text_ratio) if decoder else None,
             "mae_weight": float(weights.get("mae", 0.0)) if decoder else None,

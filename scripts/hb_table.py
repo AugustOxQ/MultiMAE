@@ -76,7 +76,7 @@ def render(res: dict) -> str:
     out += ["Seeds: " + ", ".join(f"{L[a]} {s}" for a, s in seeds.items()) + f"; probe comparator on seeds "
             f"{res['settings']['complete_seeds']} (seeds present in every arm).", ""]
     strong = res["probes"]["strongest"]
-    out += ["Strongest probe per seed: " + ", ".join(f"{s}: {L[v['arm']]} (val NLL {v['val_nll']:.4f})" for s, v in strong.items()), ""]
+    out += ["Strongest probe per seed (lowest temperature-fitted validation NLL): " + ", ".join(f"{s}: {L[v['arm']]} (val NLL after temperature {v['val_nll']:.4f}, at T = 1 {v['val_nll_t1']:.4f})" for s, v in strong.items()), ""]
 
     keys = ("jsd", "entropy_spearman", "kl", "tvd", "rank_cs")
 
@@ -105,9 +105,9 @@ def render(res: dict) -> str:
     rows = []
     for s, v in strong.items():
         m = arms[v["arm"]][s]["readouts"]["probe_full"]["metrics"]
-        rows.append([s, L[v["arm"]], f(m["jsd"]), f(m["entropy_spearman"]), f(arms[v["arm"]][s]["probe"]["val_nll"], 4),
+        rows.append([s, L[v["arm"]], f(m["jsd"]), f(m["entropy_spearman"]), f(v["val_nll"], 4), f(v["val_nll_t1"], 4),
                      arms[v["arm"]][s]["probe"]["weight_decay"]])
-    out += table(["seed", "arm", "JSD", "entropy rho", "val NLL (T = 1)", "chosen weight decay"], rows)
+    out += table(["seed", "arm", "JSD", "entropy rho", "val NLL (after temperature, selects the arm)", "val NLL (T = 1)", "chosen weight decay"], rows)
 
     out += ["## Variants of the primary readouts (mean over seeds)", ""]
     rows = []
@@ -159,7 +159,7 @@ def render(res: dict) -> str:
     out += table(["arm", "Spearman(between-view MI, human entropy)", "95% interval", "kill (interval includes zero)"],
                  [[L[a], f(r["mi"]["spearman_mean"]), f"[{f(r['mi']['ci_low'])}, {f(r['mi']['ci_high'])}] (NaN draws: {r['mi']['nan_draws']})",
                    "yes" if r["mi"]["interval_includes_zero"] else "no"] for a, r in d6["arms"].items()])
-    names = {"parcap_views16": "Par-cap, 16 views", "c_prompt_views16": "C prompt softmax, 16 views",
+    names = {"parcap_views1": "Par-cap, 1 view", "parcap_views4": "Par-cap, 4 views", "parcap_views16": "Par-cap, 16 views", "c_prompt_views16": "C prompt softmax, 16 views",
              "strongest_probe_views16": "strongest probe, 16 views"}
     out += ["Controls on the same 16 views:", ""]
     out += table(["control", "JSD", "entropy rho"], [[names[k], f(v["jsd"]), f(v["entropy_spearman"])] for k, v in d6["controls"].items()])
@@ -167,6 +167,10 @@ def render(res: dict) -> str:
         out += [f"Missing controls: {', '.join(d6['missing_controls']) or 'none'}. {d6['probe_pool_note'] or ''}", ""]
 
     out += ["## D7: partial captions (log-loss lower is better; difference is real minus null image)", ""]
+    k = res["d7"].get("kill")
+    if k:
+        flags = ", ".join(f"{p}: {'no image benefit' if v else 'image helps'}" for p, v in k["no_image_benefit"].items())
+        out += [f"**ML-80 kill verdict (no image benefit at all six j >= 2 patterns): {'KILL' if k['kill'] else 'no kill'}** ({flags}).", ""]
     for arm, r in res["d7"]["arms"].items():
         out += [f"### {L[arm]} (temperature from {r['readout']}, seeds {r['seeds']})", ""]
         rows = []
@@ -184,12 +188,16 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--encoded-root", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--annotations-dir", default=None)
+    ap.add_argument("--annotations-dir", default="/data/PDD/artelingo")
     ap.add_argument("--al28-csv", default=data.AL28_CSV)
     ap.add_argument("--min-votes", type=int, default=20)
     ap.add_argument("--B", type=int, default=10000)
     args = ap.parse_args(argv)
-    res = clean(tables.build(args.encoded_root, args.annotations_dir, args.al28_csv, args.B, args.min_votes))
+    annotations_dir = args.annotations_dir
+    if annotations_dir is not None and not Path(annotations_dir).is_dir():
+        print(f"WARNING: annotations dir {annotations_dir} not found; the English reference is skipped", file=sys.stderr)
+        annotations_dir = None
+    res = clean(tables.build(args.encoded_root, annotations_dir, args.al28_csv, args.B, args.min_votes))
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "hb_d4.json").write_text(json.dumps(res, indent=1))
     (args.out / "hb_d4.md").write_text(render(res))
