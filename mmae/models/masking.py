@@ -46,8 +46,8 @@ def random_token_mask(
     With `allowed` (B, T) bool, the masked tokens are drawn from the allowed ones only (the count is still set by
     n, capped by the number allowed). Captions with no maskable token get no mask. Returns (B, T) bool.
     """
-    if not 0.0 < ratio < 1.0:
-        raise ValueError(f"token mask ratio must be in (0, 1), got {ratio}")
+    if not 0.0 < ratio <= 1.0:
+        raise ValueError(f"token mask ratio must be in (0, 1], got {ratio}")
     real = attention_mask.bool() & ~special_tokens_mask.bool()
     maskable = real if allowed is None else real & allowed.bool()
     n = real.sum(dim=1)

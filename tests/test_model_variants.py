@@ -15,7 +15,10 @@ VARIANTS = {
     "m2b_content": ("model.masking.text_mode=content",),
     "m3_pooled": ("model.pooled_conditioning=true",),
     "m6_masked_view": ("model.loss.weights.masked_view=0.25",),
+    "parcap": ("model.masking.text_ratio=1.0", "model.mlm_image_source=clean", "model.loss.weights.mae=0"),
 }
+
+NO_VISIBLE_TEXT = {"parcap"}
 
 
 def variant_batch(tokenizer, variant: str) -> dict:
@@ -63,7 +66,8 @@ def test_each_decoder_ignores_its_own_masked_content(variant, tokenizer, monkeyp
     assert torch.equal(run(change(batch, model, masks, "image", True))[0]["image_decoder"], base["image_decoder"])
     assert torch.equal(run(change(batch, model, masks, "text", True))[0]["text_decoder"], base["text_decoder"])
     assert not torch.equal(run(change(batch, model, masks, "image", False))[0]["image_decoder"], base["image_decoder"])
-    assert not torch.equal(run(change(batch, model, masks, "text", False))[0]["text_decoder"], base["text_decoder"])
+    if variant not in NO_VISIBLE_TEXT:
+        assert not torch.equal(run(change(batch, model, masks, "text", False))[0]["text_decoder"], base["text_decoder"])
 
 
 def test_model_builds_from_a_config_without_the_new_keys():
@@ -179,3 +183,17 @@ def test_m6_scores_the_masked_caption(tokenizer, monkeypatch):
 def test_m6_needs_both_modalities_and_reconstruction(name):
     with pytest.raises(ValueError, match="masked_view"):
         tiny_model(name, "model.loss.weights.masked_view=0.25")
+
+
+def test_parcap_text_decoder_sees_no_caption_content(tokenizer, monkeypatch):
+    """At text ratio 1.0 the caption decoder's output depends on the image and the caption length only."""
+    model = tiny_model("fusion_multilearner", *VARIANTS["parcap"]).eval()
+    masks, run = recorder(model, monkeypatch)
+    batch = make_batch(tokenizer)
+    base = run(batch)[0]["text_decoder"]
+    real = batch["attention_mask"].bool() & ~batch["special_tokens_mask"].bool()
+    assert torch.equal(masks["token"], real)
+    other = dict(batch, input_ids=torch.where(real, torch.randint(1000, 40000, batch["input_ids"].shape), batch["input_ids"]))
+    assert torch.equal(run(other)[0]["text_decoder"], base)
+    noisy = dict(batch, pixel_values=batch["pixel_values"] + torch.randn_like(batch["pixel_values"]))
+    assert not torch.equal(run(noisy)[0]["text_decoder"], base)

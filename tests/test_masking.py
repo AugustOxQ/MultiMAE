@@ -1,6 +1,7 @@
 import pytest
 import torch
 
+from helpers import make_batch
 from mmae.models.masking import random_patch_mask, random_token_mask
 
 
@@ -61,7 +62,7 @@ def test_token_mask_differs_across_samples_and_is_reproducible():
     assert len({tuple(row.tolist()) for row in a}) > 1
 
 
-@pytest.mark.parametrize("ratio", [0.0, 1.0])
+@pytest.mark.parametrize("ratio", [0.0, 1.5])
 def test_token_mask_rejects_bad_ratio(ratio):
     attention, special = token_batch()
     with pytest.raises(ValueError):
@@ -88,3 +89,17 @@ def test_token_mask_draws_only_allowed_tokens_with_the_full_count():
     mask = random_token_mask(attention, special, 0.4, generator=torch.Generator().manual_seed(0), allowed=allowed)
     assert not (mask & ~allowed).any()
     assert mask.sum(dim=1).tolist() == [4, 2, 0]
+
+
+def test_ratio_one_masks_every_real_token_and_nothing_else(tokenizer):
+    batch = make_batch(tokenizer)
+    mask = random_token_mask(batch["attention_mask"], batch["special_tokens_mask"], 1.0)
+    real = batch["attention_mask"].bool() & ~batch["special_tokens_mask"].bool()
+    assert torch.equal(mask, real)
+
+
+@pytest.mark.parametrize("ratio", [0.0, 1.01, -0.5])
+def test_ratio_outside_zero_one_is_rejected(tokenizer, ratio):
+    batch = make_batch(tokenizer)
+    with pytest.raises(ValueError):
+        random_token_mask(batch["attention_mask"], batch["special_tokens_mask"], ratio)
