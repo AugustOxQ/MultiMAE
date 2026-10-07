@@ -54,7 +54,7 @@ def topk_captions(image_emb: torch.Tensor, caption_emb: torch.Tensor, query_imag
     for start in range(0, len(image), 256):
         scores = image[start : start + 256] @ captions.T
         out.append(torch.sort(scores, dim=1, descending=True, stable=True).indices[:, :k])
-    return torch.cat(out).numpy()
+    return torch.cat(out).cpu().numpy()
 
 
 def rerank(order: np.ndarray, top_scores: np.ndarray) -> np.ndarray:

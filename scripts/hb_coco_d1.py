@@ -116,7 +116,7 @@ def score_null(model, cand: np.ndarray, tok, kinds, samples, batch_size, device,
 def dual_scores(image_emb, caption_emb, query_rows, cand) -> np.ndarray:
     image = torch.nn.functional.normalize(image_emb.float(), dim=-1)[torch.as_tensor(query_rows)]
     caption = torch.nn.functional.normalize(caption_emb.float(), dim=-1)[torch.as_tensor(cand)]
-    return torch.einsum("qd,qkd->qk", image, caption).numpy()
+    return torch.einsum("qd,qkd->qk", image, caption).cpu().numpy()
 
 
 def encode_split(model, dataset, collator, batch_size, workers, device):
