@@ -128,9 +128,13 @@ def caption_scores(model, images: torch.Tensor, captions_tok: dict, kind: str, n
     return total / n
 
 
+PMI_DECIMALS = 4  # float noise between chunk shapes is ~5e-7; real score gaps are far larger
+Z_MIN_STD = 1e-3  # a row flatter than this is constant: z is 0, so noise is not blown up to unit variance
+
+
 def _z(x: np.ndarray) -> np.ndarray:
     std = x.std(axis=1, keepdims=True)
-    return (x - x.mean(axis=1, keepdims=True)) / np.where(std > 0, std, 1.0)
+    return np.where(std < Z_MIN_STD, 0.0, (x - x.mean(axis=1, keepdims=True)) / np.where(std < Z_MIN_STD, 1.0, std))
 
 
 def _order_by(order: np.ndarray, scores: np.ndarray) -> np.ndarray:
@@ -138,11 +142,11 @@ def _order_by(order: np.ndarray, scores: np.ndarray) -> np.ndarray:
 
 
 def score_a(dec: np.ndarray, null: np.ndarray, alpha: float) -> np.ndarray:
-    return dec - alpha * null
+    return np.round(dec - alpha * null, PMI_DECIMALS)
 
 
 def score_b(dual: np.ndarray, dec: np.ndarray, null: np.ndarray, alpha: float, beta: float) -> np.ndarray:
-    return _z(dual) + beta * _z(dec - alpha * null)
+    return _z(dual) + beta * _z(np.round(dec - alpha * null, PMI_DECIMALS))
 
 
 def tune(dual, dec, null, order, positives, R) -> dict:

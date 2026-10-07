@@ -22,6 +22,12 @@ def test_rerank_only_touches_the_top_k():
     assert out.tolist() == [[4, 3, 5, 2, 1, 0]]
 
 
+def test_rerank_keeps_the_dual_order_among_tied_top_scores():
+    order = np.array([[5, 4, 3, 2]])
+    out = cp.rerank(order, np.array([[0.5, 0.5, 0.9]]))
+    assert out.tolist() == [[3, 5, 4, 2]]
+
+
 def test_topk_is_a_stable_cosine_sort():
     image = torch.tensor([[1.0, 0.0]])
     captions = torch.tensor([[1.0, 0.0], [0.0, 1.0], [2.0, 0.0], [1.0, 1.0]])
@@ -275,6 +281,31 @@ def test_fusion_none_ratio_pmi_at_alpha_one_is_zero(fake_coco):
     dec, null = _score(model, script, dataset, tok, cand, batch_size=60)
     for kind in script.KINDS:
         np.testing.assert_allclose(dec[kind] - null[kind], 0.0, atol=1e-5)
+
+
+@pytest.mark.parametrize("noise", [0.0, 5e-7])
+def test_fusion_none_rerankers_at_alpha_one_give_exactly_the_dual_order(noise, fake_coco):
+    """The image-blind control's image and null scores come from different chunk shapes; float noise (real, or
+    injected up to 5e-7) must not move any candidate: PMI is snapped before ranking and _z treats a flat row as 0."""
+    script, dataset, tok, cand = _fake_val(fake_coco)
+    model = tiny_model("fusion_none").eval()
+    d = script.draws(model, tok, len(dataset), 3)
+    cpu = torch.device("cpu")
+    dec = script.score_pairs(model, dataset, np.arange(len(dataset)), cand, tok, script.KINDS, 3, 60, 0, cpu, d)
+    null = script.score_null(model, cand, tok, script.KINDS, 3, 7, cpu, d)  # other chunk shapes, partial last chunk
+    dual = np.tile(np.linspace(0.9, 0.1, cand.shape[1]), (len(cand), 1))  # cand is in dual order
+    rng = np.random.RandomState(0)
+    for kind in script.KINDS:
+        n = null[kind] + noise * rng.uniform(-1, 1, null[kind].shape)
+        assert (cp._order_by(cand, cp.score_a(dec[kind], n, 1.0)) == cand).all()
+        for beta in cp.BETAS:
+            assert (cp._order_by(cand, cp.score_b(dual, dec[kind], n, 1.0, beta)) == cand).all()
+        assert (cp.rerank(cand, cp.score_a(dec[kind], n, 1.0)) == cand).all()
+
+
+def test_z_of_a_constant_row_is_zero():
+    z = cp._z(np.array([[0.3, 0.3, 0.3 + 1e-4], [1.0, 2.0, 3.0]]))
+    assert (z[0] == 0).all() and abs(z[1].std() - 1) < 1e-9
 
 
 def test_image_and_null_scores_use_the_same_token_masks_per_caption(fake_coco, monkeypatch):

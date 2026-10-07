@@ -175,7 +175,9 @@ def run_one(run_dir: Path, args, device) -> tuple[dict, dict] | None:
         return 100 * cp.ap_at_r(order, q.positives, q.R)
 
     result = {"dual": cp.d1_metrics(full, q)}
-    arrays = {"cand": cand, "dual": dual, "query_image": q.query_image, "R": q.R, "ap_dual": ap(full)}
+    arrays = {"v_cand": v_cand, "v_dual": v_dual, **{f"v_dec_{k}": v_dec[k] for k in KINDS},
+              **{f"v_null_{k}": v_null[k] for k in KINDS}}
+    arrays |= {"cand": cand, "dual": dual, "query_image": q.query_image, "R": q.R, "ap_dual": ap(full)}
     for kind in KINDS:
         t = tuned[kind]
         pmi_a = cp.score_a(dec[kind], null[kind], t["alpha_a"])
