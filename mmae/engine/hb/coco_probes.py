@@ -87,12 +87,17 @@ def _real_tokens(attention_mask: torch.Tensor) -> torch.Tensor:
 
 
 @torch.no_grad()
-def caption_scores(model, images: torch.Tensor, captions_tok: dict, kind: str, n_samples: int, seed: int) -> torch.Tensor:
+def caption_scores(model, images: torch.Tensor, captions_tok: dict, kind: str, n_samples: int, seed: int,
+                   views: torch.Tensor | None = None, token_masks: torch.Tensor | None = None) -> torch.Tensor:
     """Per pair, the mean over samples of the mean log p of the hidden tokens, (B,).
 
     parallel: every real token hidden; masked-source models average n_samples 25% views (seeds seed + s), clean-source
     and fusion_none models use the full image and one sample. ratio: n_samples random token masks at the model's own
-    text ratio (seeds seed + s), each with its own 25% view for masked-source models, the full image otherwise."""
+    text ratio (seeds seed + s), each with its own 25% view for masked-source models, the full image otherwise.
+
+    views (K, B, 13) and token_masks (K, B, T) are optional precomputed draws keyed by the caller (by image and by
+    caption id), so a pair's score does not depend on how rows are chunked; sample s uses views[s] / token_masks[s].
+    Without them the draws come from per-chunk generators seeded seed + s (row-position keyed)."""
     if kind not in ("parallel", "ratio"):
         raise ValueError(f"kind must be parallel or ratio, got {kind!r}")
     device = images.device
@@ -105,11 +110,15 @@ def caption_scores(model, images: torch.Tensor, captions_tok: dict, kind: str, n
     total = torch.zeros(len(ids), device=device)
     for s in range(n):
         ids_keep = None
-        if viewed:
+        if viewed and views is not None:
+            ids_keep = views[s].to(device)
+        elif viewed:
             ids_keep, _ = random_patch_mask(len(ids), model.vision.num_patches, VIEW_RATIO, device=device,
                                             generator=torch.Generator().manual_seed(seed + s))
         if kind == "parallel":
             hidden = real
+        elif token_masks is not None:
+            hidden = token_masks[s].to(device)
         else:
             hidden = random_token_mask(attention, special, model.text_ratio,
                                        generator=torch.Generator().manual_seed(seed + s)).to(device)
@@ -170,3 +179,13 @@ def d1_metrics(order: np.ndarray, q: EccvI2T) -> dict:
                  "r_precision": float(rp[ix].mean()) if len(ix) else None}
           for name, ix in r_thirds(q.R).items()}
     return {"n": int(len(ap)), "map_at_r": float(ap.mean()), "r_precision": float(rp.mean()), "by_third": by}
+
+
+def token_mask_table(tok: dict, ratio: float, n_samples: int, seed: int) -> torch.Tensor:
+    """(K, N, T) hidden-token sets for every caption of a split, drawn once per sample over the whole table and
+    indexed by caption id, so a caption has the same hidden set for every query, the null image and every model
+    with the same ratio. tok needs input_ids, attention_mask and special_tokens_mask."""
+    return torch.stack([
+        random_token_mask(tok["attention_mask"], tok["special_tokens_mask"], ratio,
+                          generator=torch.Generator().manual_seed(seed + s))
+        for s in range(n_samples)])

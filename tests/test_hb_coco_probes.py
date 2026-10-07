@@ -177,6 +177,7 @@ def _make_run(tmp_path, fake_coco, name):
 
     model = MultiMAE(cfg.model, max_text_len=cfg.data.max_text_len)
     torch.save({"model": model.state_dict()}, run / "checkpoints" / "best.pt")
+    (run / "run.json").write_text('{"status": "completed"}')
     return run
 
 
@@ -194,8 +195,13 @@ def test_d1_script_end_to_end_on_the_fake_coco(tmp_path, fake_coco, monkeypatch)
     q = cp.EccvI2T(query_image=np.arange(4), positives=[np.arange(5 * i, 5 * i + 5) for i in range(4)],
                    R=np.full(4, 5))
     monkeypatch.setattr(cp, "eccv_i2t", lambda ann: q)
-    result = script.run_one(run, _args(), torch.device("cpu"))
-    assert result["meta"]["queries"] == 4 and result["meta"]["k"] == 50
+    result, arrays = script.run_one(run, _args(k=10), torch.device("cpu"))
+    assert result["meta"]["queries"] == 4 and result["meta"]["k"] == 10
+    assert arrays["cand"].shape == (4, 10) and arrays["dec_ratio"].shape == (4, 10)
+    for kind in ("parallel", "ratio"):
+        assert set(result[kind]["grid_a"]) == {str(a) for a in cp.ALPHAS}
+        assert len(result[kind]["grid_b"]) == len(cp.ALPHAS) * len(cp.BETAS)
+        assert result[kind]["grid_a"]["0.0"]["by_third"]["R<=15"]["n"] == 4
     for kind in ("parallel", "ratio"):
         for key in ("rerank_a", "rerank_b", "raw_decoder"):
             assert 0 <= result[kind][key]["map_at_r"] <= 100
@@ -204,7 +210,8 @@ def test_d1_script_end_to_end_on_the_fake_coco(tmp_path, fake_coco, monkeypatch)
     # alpha = 0, beta = 0 reproduces the dual order exactly
     pass_through = cp.score_b(np.arange(30.0)[None, ::-1], np.random.rand(1, 30), np.random.rand(1, 30), 0.0, 0.0)
     assert np.argsort(-pass_through[0]).tolist() == list(range(30))
-    one = script.run_one(run, _args(limit_queries=2), torch.device("cpu"))
+    one, one_arrays = script.run_one(run, _args(k=10, limit_queries=2), torch.device("cpu"))
+    assert one_arrays["cand"].shape == (2, 10)
     assert one["meta"]["queries"] == 2 and one["meta"]["queries_total"] == 4 and one["dual"]["n"] == 2
 
 
@@ -214,11 +221,82 @@ def test_d1_script_skips_checkpoints_without_a_decoder(tmp_path, fake_coco):
     assert script.run_one(run, _args(), torch.device("cpu")) is None
 
 
-def test_null_scores_are_computed_once_per_candidate_caption(tokenizer):
-    script = _load_script()
+def _fake_val(fake_coco):
+    from mmae.data import Collator
+    from mmae.data.coco import CocoRetrieval
+    from mmae.data.transforms import build_image_transform
+    images_dir, annotations_dir = fake_coco
+    processor = "openai/clip-vit-base-patch32"
+    dataset = CocoRetrieval(images_dir, annotations_dir, "val", build_image_transform(processor), 6)
+    collator = Collator(processor, 32)
+    tok = {k: v for k, v in collator.tokenize([c for _, caps in dataset.items for c in caps]).items()}
+    cand = np.array([[(7 * i + 3 * j) % 30 for j in range(6)] for i in range(6)])
+    return script_mod(), dataset, tok, cand
+
+
+def script_mod():
+    return _load_script()
+
+
+def _score(model, script, dataset, tok, cand, batch_size, samples=3):
+    d = script.draws(model, tok, len(dataset), samples)
+    dec = script.score_pairs(model, dataset, np.arange(len(dataset)), cand, tok, script.KINDS, samples, batch_size, 0,
+                             torch.device("cpu"), d)
+    null = script.score_null(model, cand, tok, script.KINDS, samples, batch_size, torch.device("cpu"), d)
+    return dec, null
+
+
+@pytest.mark.parametrize("name", ["fusion_multilearner", "fusion_none", "fusion_concat"])
+def test_scores_do_not_depend_on_batch_size(name, fake_coco):
+    script, dataset, tok, cand = _fake_val(fake_coco)
+    model = tiny_model(name).eval()
+    dec_a, null_a = _score(model, script, dataset, tok, cand, batch_size=60)
+    dec_b, null_b = _score(model, script, dataset, tok, cand, batch_size=12)  # 2 queries per chunk, null chunks of 12
+    for kind in script.KINDS:
+        np.testing.assert_allclose(dec_a[kind], dec_b[kind], atol=1e-5)
+        np.testing.assert_allclose(null_a[kind], null_b[kind], atol=1e-5)
+
+
+def test_pair_score_is_unchanged_when_the_chunk_order_changes(fake_coco):
+    script, dataset, tok, cand = _fake_val(fake_coco)
     model = tiny_model("fusion_multilearner").eval()
-    batch = make_batch(tokenizer, batch_size=4)
-    tok = _tok(batch)
-    cand = np.array([[0, 1], [1, 2], [3, 0]])
-    out = script.score_null(model, cand, tok, ("parallel",), 2, 100, torch.device("cpu"))["parallel"]
-    assert out.shape == (3, 2) and out[0, 1] == out[1, 0] and out[0, 0] == out[2, 1]
+    dec, _ = _score(model, script, dataset, tok, cand, batch_size=60)
+    d = script.draws(model, tok, len(dataset), 3)
+    perm = np.array([4, 2, 5, 0, 3, 1])
+    rev = script.score_pairs(model, dataset, perm, cand[perm], tok, ("ratio",), 3, 60, 0, torch.device("cpu"), d)
+    np.testing.assert_allclose(rev["ratio"], dec["ratio"][perm], atol=1e-5)
+
+
+def test_fusion_none_ratio_pmi_at_alpha_one_is_zero(fake_coco):
+    script, dataset, tok, cand = _fake_val(fake_coco)
+    model = tiny_model("fusion_none").eval()
+    dec, null = _score(model, script, dataset, tok, cand, batch_size=60)
+    for kind in script.KINDS:
+        np.testing.assert_allclose(dec[kind] - null[kind], 0.0, atol=1e-5)
+
+
+def test_image_and_null_scores_use_the_same_token_masks_per_caption(fake_coco, monkeypatch):
+    script, dataset, tok, cand = _fake_val(fake_coco)
+    model = tiny_model("fusion_multilearner").eval()
+    seen: dict[tuple, list] = {}
+    original = model.decode_text
+
+    def spy(pixel_values, input_ids, attention_mask, token_mask, ids_keep=None):
+        zero = bool(pixel_values.abs().sum() == 0)
+        for ids, m in zip(input_ids, token_mask):
+            seen.setdefault(tuple(ids.tolist()), []).append((zero, m.clone()))
+        return original(pixel_values, input_ids, attention_mask, token_mask, ids_keep=ids_keep)
+
+    monkeypatch.setattr(model, "decode_text", spy)
+    _score(model, script, dataset, tok, cand, batch_size=24)
+    attention = tok["attention_mask"]
+    checked = 0
+    for ids, calls in seen.items():
+        # parallel calls hide every real token; the remaining (ratio) masks must agree between image and null
+        partial = [(z, m) for z, m in calls if int(m.sum()) < int(attention[tok["input_ids"].eq(torch.tensor(ids)).all(1)][0].sum()) - 2]
+        img = {tuple(m.tolist()) for z, m in partial if not z}
+        nul = {tuple(m.tolist()) for z, m in partial if z}
+        if img and nul:
+            assert img <= nul
+            checked += 1
+    assert checked
