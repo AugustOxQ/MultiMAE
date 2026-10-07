@@ -157,3 +157,49 @@ def add_emotion(batch: dict) -> dict:
     """An ArtELingo-style emotion label per caption (class index in 0..8)."""
     b = batch["input_ids"].shape[0]
     return {**batch, "emotion": torch.arange(b) % 9}
+
+
+ARTELINGO_EMOTIONS = ("amusement", "awe", "contentment", "excitement", "anger", "disgust", "fear", "sadness", "something else")
+
+
+def make_fake_artelingo(root: Path) -> tuple[Path, Path, Path]:
+    """A tiny ArtELingo tree: 6 train paintings (2 captions each, p5 held out), 3 val and 3 test paintings with 5
+    captions each (v2 and t1 held out), per-caption files with emotions and 5-caption retrieval files, a held-out
+    list, one grayscale and one PNG-as-RGBA painting. Returns (images_dir, annotations_dir, heldout_file)."""
+    images_dir, annotations_dir = root / "wikiart", root / "artelingo"
+    (images_dir / "Style_A").mkdir(parents=True)
+    annotations_dir.mkdir(parents=True)
+    g = torch.Generator().manual_seed(0)
+
+    def save(name: str, mode: str = "RGB") -> str:
+        rel = f"Style_A/{name}.jpg"
+        pixels = (torch.rand(3, 300, 260, generator=g) * 255).byte().permute(1, 2, 0).numpy()
+        Image.fromarray(pixels, "RGB").convert(mode).save(images_dir / rel, "JPEG")
+        return rel
+
+    def caption_items(painting: str, rel: str, n: int, offset: int) -> list[dict]:
+        return [{"image": rel, "caption": f"{painting} reading {k} of the painting", "image_id": f"{painting}#{k}",
+                 "emotion": ARTELINGO_EMOTIONS[(offset + k) % 9], "art_style": "Style_A", "painting": painting}
+                for k in range(n)]
+
+    train = []
+    for i in range(6):
+        rel = save(f"p{i}", "L" if i == 1 else "RGB")
+        train += caption_items(f"p{i}", rel, 2, i)
+    files = {"artelingo_train.json": train}
+    for split, prefix in (("val", "v"), ("test", "t")):
+        per_caption, retrieval = [], []
+        for i in range(3):
+            painting = f"{prefix}{i}"
+            rel = save(painting)
+            items = caption_items(painting, rel, 5, i)
+            per_caption += items
+            retrieval.append({"image": rel, "caption": [x["caption"] for x in items], "image_id": painting,
+                              "art_style": "Style_A", "painting": painting})
+        files[f"artelingo_{split}.json"] = per_caption
+        files[f"artelingo_{split}_retrieval.json"] = retrieval
+    for name, items in files.items():
+        (annotations_dir / name).write_text(json.dumps(items))
+    heldout = root / "al28_paintings.txt"
+    heldout.write_text("p5\nv2\nt1\nnot_in_artelingo\n")
+    return images_dir, annotations_dir, heldout
