@@ -6,23 +6,29 @@
 1,000 pairs of distinct COCO test images with unrelated captions (zero-shot CLIP B/32 caption embeddings; written once
 to <out>/pairs.json, so every model reads the same pairs). Per pair and condition (pixel blends lambda A + (1 - lambda) B
 on the normalised tensors, lambda 0.3..0.7; patch mixes of m of A's and 13 - m of B's patches at their own positions,
-m 3..11) every model reads the same images and draws:
-  dual (every model): both-covered@{5,10,20} of the top-k captions over the 25,000 test captions, and balance (A's
-    share of the top 5 when A's and B's 10 captions are ranked by dual similarity);
+m 3..11) every model reads the same images and draws (balance ranks A's and B's 10 captions together and breaks exact
+ties in A's favour, A being listed first):
+  dual (every model): both-covered@{5,10,20} of the top-k captions over the 25,000 test captions, the dual encoder's
+    own both-covered@50 (the ceiling of any top-50 re-ranker), and balance (A's share of the top 5 when A's and B's
+    10 captions are ranked by dual similarity);
   decoder (models with a caption decoder): balance by parallel score, both-covered@k after D1's re-ranker (a) (alpha
     tuned in D1, read from --d1-dir/<run>/d1.json, parallel score), and the selection index for cA (A's first caption)
-    and cB with j in {0, 1, 2, 3} content tokens visible, on pure A, pure B and the 0.5 blend.
+    and cB with j in {0, 1, 2, 3} content tokens visible, on pure A, pure B and the 0.5 blend (mean, median, ratio of
+    sums, near-ties with |s_A - s_B| < 0.05, ties dropped), plus the score-gap balance (mean parallel score of A's 5
+    captions minus B's).
 Models without a decoder (contrastive, zero-shot) get dual rows only.
 
-Choices left open by the brief: the patch mix is a 13-patch view (positions drawn per pair from seed 2, the same for
-every m, the first m from A); the dual encoder and masked-source decoders read the view through ids_keep, clean-source
+Choices left open by the brief: the patch mix is a 13-patch view (positions drawn per pair from
+Generator().manual_seed(2,000,000 + pair index), the same for every m, the first m from A); the dual encoder and masked-source decoders read the view through ids_keep, clean-source
 and fusion_none decoders read the composite whose other patches are zero (the null image). Patch-mix decoder scores use
 that single view (one sample). Blend decoder scores: masked-source models average K = 8 views (selection index: 4),
 others the full image. Common random numbers: views are view_ids(P, K) indexed by pair, patch positions are keyed by
 pair, so nothing depends on --batch-size, chunk order or the model. Re-ranking uses the dual top 50 of each blended
 image; null scores come from view_ids(1, K) (as D1).
 
-Output: <out>/<run or zeroshot>/d2.json and balance.npz (per-pair balances).
+Output: <out>/<run or zeroshot>/d2.json, balance.npz (per-pair balances) and d2_scores.npz (raw per-item scores: the
+10 dual similarities and 10 parallel decoder scores per pair and condition, and s_A, s_B, s_blend of every selection
+item by side and j). With --d1-dir, a decoder model whose d1.json is missing is an error.
 """
 import argparse
 import json
@@ -117,9 +123,14 @@ def dual_rows(img_emb, cap_emb, cap_rows: np.ndarray) -> np.ndarray:
     return torch.einsum("pd,pcd->pc", image, caption).numpy()
 
 
-def summarise(x: np.ndarray, dropped: int) -> dict:
-    return {"mean": float(x.mean()) if len(x) else None, "median": float(np.median(x)) if len(x) else None,
-            "n": int(len(x)), "dropped": dropped}
+def summarise(x: np.ndarray, dropped: int, blend=None, own=None, other=None) -> dict:
+    out = {"mean": float(x.mean()) if len(x) else None, "median": float(np.median(x)) if len(x) else None,
+           "n": int(len(x)), "dropped": dropped}
+    if blend is not None:  # robust summaries of the unbounded ratio, over all items
+        den = float((own - other).sum())
+        out["ratio_of_sums"] = float((blend - other).sum() / den) if abs(den) >= cp.TIE_TOL else None
+        out["near_ties"] = int((np.abs(own - other) < 0.05).sum())
+    return out
 
 
 def build_shared(dataset, collator, pairs: np.ndarray, limit: int | None) -> dict:
@@ -173,15 +184,17 @@ def run_model(model, name: str, sh: dict, args, device, d1_json: dict | None = N
         bal = cp.balance(sims[:, :5], sims[:, 5:])
         tops[cond_key(cond)] = top
         arrays[f"dual_balance_{cond_key(cond)}"] = bal
+        arrays[f"dual_sim_{cond_key(cond)}"] = sims
         result["dual"][cond_key(cond)] = {
             "both_covered": {str(k): cp.both_covered(top[:, :k], a_rows, b_rows) for k in KS},
+            "both_covered_at_50": cp.both_covered(top[:, :DEPTH], a_rows, b_rows),
             "balance": float(bal.mean())}
     if not decoder:
         result["meta"]["seconds"] = time.time() - t0
         return result, arrays
 
     # --- decoder: balance by parallel score
-    result["decoder"] = {"balance_parallel": {}, "both_covered_rerank": {}, "selection": {}}
+    result["decoder"] = {"balance_parallel": {}, "score_gap": {}, "both_covered_rerank": {}, "selection": {}}
 
     def views_for(cond, idx, ids):
         if cond[0] == "mix":
@@ -198,6 +211,8 @@ def run_model(model, name: str, sh: dict, args, device, d1_json: dict | None = N
         sc = np.concatenate(out)
         bal = cp.balance(sc[:, :5], sc[:, 5:])
         arrays[f"dec_balance_{cond_key(cond)}"] = bal
+        arrays[f"dec_par_{cond_key(cond)}"] = sc
+        result["decoder"]["score_gap"][cond_key(cond)] = float((sc[:, :5].mean(1) - sc[:, 5:].mean(1)).mean())
         result["decoder"]["balance_parallel"][cond_key(cond)] = float(bal.mean())
 
     # --- decoder: both-covered after D1's re-ranker (a), alpha from D1
@@ -253,11 +268,15 @@ def run_model(model, name: str, sh: dict, args, device, d1_json: dict | None = N
         for side in ("A", "B"):
             blend_, own, other = (np.concatenate(x) for x in sel[j][side])
             idx_, dropped = cp.selection_index(blend_, own, other)
-            entry[f"c{side}"] = summarise(idx_, dropped)
+            entry[f"c{side}"] = summarise(idx_, dropped, blend_, own, other)
+            sa, sb = (own, other) if side == "A" else (other, own)
+            arrays[f"sel_c{side}_j{j}_sA"], arrays[f"sel_c{side}_j{j}_sB"] = sa, sb
+            arrays[f"sel_c{side}_j{j}_blend"] = blend_
             entry[f"c{side}"]["s_own_minus_other"] = float((own - other).mean())
+        cat = [np.concatenate([np.concatenate(sel[j][side][i]) for side in ("A", "B")]) for i in range(3)]
         both = np.concatenate([
             cp.selection_index(*[np.concatenate(x) for x in sel[j][side]])[0] for side in ("A", "B")])
-        entry["pooled"] = summarise(both, entry["cA"]["dropped"] + entry["cB"]["dropped"])
+        entry["pooled"] = summarise(both, entry["cA"]["dropped"] + entry["cB"]["dropped"], *cat)
         result["decoder"]["selection"][str(j)] = entry
     result["meta"]["seconds"] = time.time() - t0
     return result, arrays
@@ -318,14 +337,18 @@ def main() -> None:
         setup(cfg)
         shared = shared or build_shared(dataset, collator, pairs, args.limit_pairs)
         d1_json = None
-        if args.d1_dir is not None and (args.d1_dir / name / "d1.json").exists():
-            d1_json = json.loads((args.d1_dir / name / "d1.json").read_text())
+        if args.d1_dir is not None and d1.has_caption_decoder(model):
+            d1_file = args.d1_dir / name / "d1.json"
+            if not d1_file.exists():
+                raise SystemExit(f"--d1-dir given but {d1_file} is missing")
+            d1_json = json.loads(d1_file.read_text())
         log.info("model %s on %s (d1 alpha: %s)", name, device, d1_json is not None)
         result, arrays = run_model(model, name, shared, args, device, d1_json)
         folder = args.out / name
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "d2.json").write_text(json.dumps(result, indent=1))
-        np.savez_compressed(folder / "balance.npz", **arrays)
+        np.savez_compressed(folder / "balance.npz", **{k: v for k, v in arrays.items() if "_balance_" in k})
+        np.savez_compressed(folder / "d2_scores.npz", **{k: v for k, v in arrays.items() if "_balance_" not in k})
         log.info("wrote %s", folder / "d2.json")
         del model
 

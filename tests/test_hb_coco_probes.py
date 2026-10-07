@@ -1,3 +1,4 @@
+import sys
 import json
 from pathlib import Path
 
@@ -462,3 +463,83 @@ def test_d2_blend_inputs_are_the_models_normalised_tensors(fake_coco, monkeypatc
     assert ids is None and torch.equal(images, sh["imgs_a"])
     mix, ids = mod.condition_images(("mix", 11), sh["imgs_a"], sh["imgs_b"], idx)
     assert ids.shape == (5, 13) and mix.shape == sh["imgs_a"].shape
+
+
+# ---- D2 fix round 1 ----
+def test_d2_raw_scores_ceiling_and_robust_summaries(fake_coco):
+    mod = _load_d2()
+    sh = _d2_shared(mod, fake_coco, limit=3)
+    model = tiny_model("fusion_concat", "model.mlm_image_source=clean").eval()
+    result, arrays = mod.run_model(model, "m", sh, _d2_args(), torch.device("cpu"), D1_JSON)
+    assert arrays["dual_sim_blend_0.3"].shape == (3, 10) and arrays["dec_par_mix_3"].shape == (3, 10)
+    assert arrays["sel_cA_j2_sA"].shape == arrays["sel_cB_j2_blend"].shape == (3,)
+    assert 0 <= result["dual"]["mix_5"]["both_covered_at_50"] <= 1
+    assert result["dual"]["blend_0.5"]["both_covered_at_50"] >= result["dual"]["blend_0.5"]["both_covered"]["20"]
+    entry = result["decoder"]["selection"]["1"]["cA"]
+    assert {"ratio_of_sums", "near_ties", "mean", "median"} <= set(entry)
+    sa, sb, bl = (arrays[f"sel_cA_j1_{k}"] for k in ("sA", "sB", "blend"))
+    assert entry["ratio_of_sums"] == pytest.approx((bl - sb).sum() / (sa - sb).sum())
+    assert entry["near_ties"] == int((np.abs(sa - sb) < 0.05).sum())
+    gap = arrays["dec_par_blend_0.5"]
+    assert result["decoder"]["score_gap"]["blend_0.5"] == pytest.approx((gap[:, :5].mean(1) - gap[:, 5:].mean(1)).mean())
+
+
+def test_d2_selection_scores_the_three_images_with_the_same_views(fake_coco, monkeypatch):
+    mod = _load_d2()
+    sh = _d2_shared(mod, fake_coco, limit=3)
+    model = tiny_model("fusion_multilearner").eval()
+    calls = []
+    original = mod.score_captions
+
+    def spy(model_, images, cap_rows, tok, samples, device, views=None, hidden=None):
+        if hidden is not None:
+            calls.append((images.clone(), None if views is None else views.clone()))
+        return original(model_, images, cap_rows, tok, samples, device, views, hidden)
+
+    monkeypatch.setattr(mod, "score_captions", spy)
+    mod.run_model(model, "m", sh, _d2_args(), torch.device("cpu"), None)
+    assert calls and len(calls) % 3 == 0
+    for i in range(0, len(calls), 3):  # per (side, j): pure A, pure B, blend
+        (img_a, v_a), (img_b, v_b), (img_m, v_m) = calls[i : i + 3]
+        assert v_a is not None and torch.equal(v_a, v_b) and torch.equal(v_a, v_m)
+        torch.testing.assert_close(img_m, 0.5 * img_a + 0.5 * img_b)
+
+
+def test_d2_selection_index_of_b_is_measured_toward_b(fake_coco, monkeypatch):
+    mod = _load_d2()
+    sh = _d2_shared(mod, fake_coco, limit=3)
+    model = tiny_model("fusion_concat", "model.mlm_image_source=clean").eval()
+    monkeypatch.setattr(mod.cp, "blend", lambda a, b, lam: b.clone())  # the "blend" is pure B
+    result, _ = mod.run_model(model, "m", sh, _d2_args(), torch.device("cpu"), None)
+    for j in ("0", "1"):
+        entry = result["decoder"]["selection"][j]
+        if entry["cB"]["n"]:
+            assert entry["cB"]["mean"] == pytest.approx(1.0, abs=1e-4)
+        if entry["cA"]["n"]:
+            assert entry["cA"]["mean"] == pytest.approx(0.0, abs=1e-4)
+    assert sum(result["decoder"]["selection"][j]["cB"]["n"] for j in ("0", "1", "2", "3")) > 0
+
+
+def test_d2_fusion_none_decoder_balance_is_identical_across_lambda(fake_coco):
+    mod = _load_d2()
+    sh = _d2_shared(mod, fake_coco, limit=3)
+    result, _ = mod.run_model(tiny_model("fusion_none").eval(), "n", sh, _d2_args(), torch.device("cpu"), None)
+    bal = [result["decoder"]["balance_parallel"][f"blend_{lam}"] for lam in mod.cp.LAMBDAS]
+    gap = [result["decoder"]["score_gap"][f"blend_{lam}"] for lam in mod.cp.LAMBDAS]
+    assert len(set(bal)) == 1 and gap == pytest.approx([gap[0]] * 5, abs=1e-6)
+
+
+def test_d2_main_errors_on_a_missing_d1_json(tmp_path, fake_coco, monkeypatch):
+    mod = _load_d2()
+    run = _make_run(tmp_path, fake_coco, "fusion_multilearner")
+    images_dir, annotations_dir = fake_coco
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "pairs.json").write_text(json.dumps([[0, 1], [2, 3]]))
+    d1_dir = tmp_path / "d1"
+    d1_dir.mkdir()
+    monkeypatch.setattr(sys, "argv", ["x", "--runs", str(run), "--out", str(out), "--d1-dir", str(d1_dir),
+                                      "--images-dir", str(images_dir), "--annotations-dir", str(annotations_dir),
+                                      "--device", "cpu", "--limit-pairs", "2"])
+    with pytest.raises(SystemExit, match="d1.json"):
+        mod.main()
