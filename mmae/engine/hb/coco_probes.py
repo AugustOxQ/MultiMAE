@@ -189,3 +189,79 @@ def token_mask_table(tok: dict, ratio: float, n_samples: int, seed: int) -> torc
         random_token_mask(tok["attention_mask"], tok["special_tokens_mask"], ratio,
                           generator=torch.Generator().manual_seed(seed + s))
         for s in range(n_samples)])
+
+
+# ---- D2: blend probe (spec section 11) ----
+LAMBDAS = (0.3, 0.4, 0.5, 0.6, 0.7)
+MIX_M = (3, 5, 7, 9, 11)
+PATCH_SIZE, N_KEEP = 32, 13
+TIE_TOL = 1e-6
+
+
+def select_pairs(caption_emb: torch.Tensor, n_pairs: int = 1000, n_random: int = 100000, percentile: float = 10,
+                 seed_pairs: int = 0, seed_random: int = 1) -> np.ndarray:
+    """(n_pairs, 2) distinct image pairs whose mean cross-caption cosine is below the percentile of n_random random
+    pairs. caption_emb (N, 5, D); the mean over the 5 x 5 cosines of unit vectors is the dot of the mean unit vectors.
+    Candidates are drawn from RandomState(seed_pairs) in order; unordered duplicates are skipped."""
+    mean = torch.nn.functional.normalize(caption_emb.float(), dim=-1).mean(1).numpy()
+    n = len(mean)
+
+    def draw(rng, count):
+        a = rng.randint(0, n, count)
+        b = rng.randint(0, n - 1, count)
+        return a, b + (b >= a)  # distinct
+
+    a, b = draw(np.random.RandomState(seed_random), n_random)
+    threshold = np.percentile((mean[a] * mean[b]).sum(1), percentile)
+    rng, seen, out = np.random.RandomState(seed_pairs), set(), []
+    for _ in range(1000):
+        a, b = draw(rng, max(10 * n_pairs, 1000))
+        for x, y, s in zip(a, b, (mean[a] * mean[b]).sum(1)):
+            key = (min(x, y), max(x, y))
+            if s < threshold and key not in seen:
+                seen.add(key)
+                out.append((x, y))
+                if len(out) == n_pairs:
+                    return np.array(out)
+    raise ValueError(f"only {len(out)} of {n_pairs} pairs below the {percentile}th percentile were found")
+
+
+def blend(a: torch.Tensor, b: torch.Tensor, lam: float) -> torch.Tensor:
+    """lam a + (1 - lam) b on the normalised tensors the model sees (lam = 1 is a exactly)."""
+    return lam * a + (1 - lam) * b
+
+
+def patch_mix(a: torch.Tensor, b: torch.Tensor, m: int, generator: torch.Generator,
+              patch_size: int = PATCH_SIZE, n_keep: int = N_KEEP) -> tuple[torch.Tensor, torch.Tensor]:
+    """A 13-patch view: n_keep positions drawn from the generator, the first m taken from a and the rest from b, each
+    at its own position; every other pixel is zero (the null image). Returns (composite, ids_keep (n_keep,))."""
+    grid = a.shape[-1] // patch_size
+    ids = torch.randperm(grid * grid, generator=generator)[:n_keep]
+    out = torch.zeros_like(a)
+    for rank, p in enumerate(ids.tolist()):
+        r, c = divmod(p, grid)
+        window = (..., slice(r * patch_size, (r + 1) * patch_size), slice(c * patch_size, (c + 1) * patch_size))
+        out[window] = (a if rank < m else b)[window]
+    return out, ids
+
+
+def both_covered(order: np.ndarray, a_rows: np.ndarray, b_rows: np.ndarray) -> float:
+    """Share of pairs whose top-k caption rows (P, k) hold at least one caption of A and one of B."""
+    hit_a = (order[:, :, None] == a_rows[:, None, :]).any(axis=(1, 2))
+    hit_b = (order[:, :, None] == b_rows[:, None, :]).any(axis=(1, 2))
+    return float((hit_a & hit_b).mean())
+
+
+def balance(scores_a: np.ndarray, scores_b: np.ndarray) -> np.ndarray:
+    """A's share of the top 5 when A's and B's 10 captions are ranked by score (ties keep A first)."""
+    both = np.concatenate([scores_a, scores_b], axis=1)
+    top = np.argsort(-both, axis=1, kind="stable")[:, :5]
+    return (top < scores_a.shape[1]).mean(axis=1)
+
+
+def selection_index(s_blend: np.ndarray, s_a: np.ndarray, s_b: np.ndarray) -> tuple[np.ndarray, int]:
+    """(s_blend - s_b) / (s_a - s_b) per item, 1 when the blend scores like source a and 0 like source b. Items with
+    |s_a - s_b| < 1e-6 are dropped; returns the kept indices and the number dropped."""
+    s_blend, s_a, s_b = (np.asarray(x, dtype=float) for x in (s_blend, s_a, s_b))
+    keep = np.abs(s_a - s_b) >= TIE_TOL
+    return (s_blend[keep] - s_b[keep]) / (s_a[keep] - s_b[keep]), int((~keep).sum())
