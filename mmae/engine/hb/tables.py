@@ -44,6 +44,8 @@ def load_runs(root: str | Path) -> tuple[dict[str, dict[int, dict]], list[dict]]
         arm, seed = arm_of(enc["meta"], folder), enc["meta"].get("seed")
         if seed is None or seed in runs.get(arm, {}):
             raise ValueError(f"{folder}: missing or duplicate seed {seed!r} for arm {arm}")
+        enc["_folder"] = folder.name
+        check_d7(enc, arm, folder)
         runs.setdefault(arm, {})[int(seed)] = enc
         listing.append({"folder": folder.name, "arm": arm, "seed": int(seed)})
     if not runs:
@@ -52,7 +54,22 @@ def load_runs(root: str | Path) -> tuple[dict[str, dict[int, dict]], list[dict]]
     for e in encs[1:]:
         if e["meta"]["al28"] != encs[0]["meta"]["al28"] or not np.array_equal(e["al28_counts"], encs[0]["al28_counts"]):
             raise ValueError("runs disagree on the AL-28 paintings or counts")
+        if (e["meta"]["val"] != encs[0]["meta"]["val"] or not np.array_equal(e["val_index"], encs[0]["val_index"])
+                or not np.array_equal(e["val_labels"], encs[0]["val_labels"])):
+            raise ValueError(f"{e['_folder']}: validation paintings, index or labels differ from {encs[0]['_folder']}")
     return runs, listing
+
+
+def check_d7(enc: dict, arm: str, folder) -> None:
+    """Every decoder run must carry the D7 arrays; masked-source arms were encoded on 4 views, Par-cap on 1."""
+    if arm == "c":
+        return
+    if "d7_real" not in enc or "d7_null" not in enc:
+        raise ValueError(f"{folder}: decoder run without D7 arrays (encoded with --skip-d7?)")
+    want = 1 if arm == "parcap" else 4
+    if enc["meta"].get("d7_views") != want or enc["d7_real"].shape[2] != want or enc["d7_null"].shape[2] != want:
+        raise ValueError(f"{folder}: D7 must use {want} view(s) for {arm}, got meta d7_views={enc['meta'].get('d7_views')!r}, "
+                         f"d7_real {enc['d7_real'].shape}")
 
 
 def agreement(p: np.ndarray, h: np.ndarray, cuts: np.ndarray | None = None) -> dict:
@@ -96,7 +113,7 @@ def evaluate_run(enc: dict, probe, prior, target, counts, counts_od, cuts) -> tu
         t = calibrate.fit_temperature(val, index, labels)
         p = calibrate.mixture(al, t)
         p8 = p[named][:, :8]
-        res[name] = {"T": t, "val_nll": calibrate.nll(calibrate.mixture(val, t), index, labels),
+        res[name] = {"T": t, "t_at_bound": bool(abs(np.log(t)) >= 2.99), "val_nll": calibrate.nll(calibrate.mixture(val, t), index, labels),
                      "metrics": agreement(p, target, cuts), "other_dropped": primary_pair(p, target_od),
                      "named8": {**primary_pair(p8 / p8.sum(1, keepdims=True), human8), "n": int(named.sum())}}
         dist[name] = p
@@ -124,7 +141,9 @@ def human_references(names, counts, csv, min_votes, annotations_dir, cuts) -> di
     if annotations_dir is not None:
         english = data.english_counts(list(names), annotations_dir)
         has = english.sum(1) > 0
-        out["english"] = {**agreement(metrics.normalise(english[has]), target[has]), "n": int(has.sum()),
+        eng = agreement(metrics.normalise(english[has]), target[has])
+        eng.pop("kl")  # meaningless: the 5-vote histograms hold zeros
+        out["english"] = {**eng, "n": int(has.sum()),
                           "n_dropped_without_english": int((~has).sum())}
     return out
 
@@ -135,17 +154,26 @@ def strongest_probes(arms: dict, seeds: list[int]) -> dict[int, dict]:
             for s in seeds}
 
 
-def _provisional(seed_sets: dict[str, list[int]]) -> str | None:
-    if all(len(v) >= MIN_SEEDS for v in seed_sets.values()):
+def pool_note(present) -> str | None:
+    """Names the strongest-probe pool when an arm is absent (the pool, hence the comparator, is then smaller)."""
+    absent = [LABELS[a] for a in ARMS if a not in present]
+    if not absent:
         return None
-    return "provisional (seeds: " + "; ".join(f"{k} {v}" for k, v in seed_sets.items()) + ")"
+    return f"missing arm(s): {', '.join(absent)}; probe pool: {', '.join(LABELS[a] for a in ARMS if a in present)}"
+
+
+def _provisional(seed_sets: dict[str, list[int]], pool: str | None = None) -> str | None:
+    if all(len(v) >= MIN_SEEDS for v in seed_sets.values()) and not pool:
+        return None
+    parts = [f"seeds: " + "; ".join(f"{k} {v}" for k, v in seed_sets.items())] + ([pool] if pool else [])
+    return "provisional (" + "; ".join(parts) + ")"
 
 
 def _test_entry(r: dict, extra: dict) -> dict:
     return {"diff": r["diff"], "ci_low": r["ci_low"], "ci_high": r["ci_high"], "p": r["p"], **extra}
 
 
-def pre_registered_tests(dist, seeds, best, target, B) -> tuple[dict, dict, dict]:
+def pre_registered_tests(dist, seeds, best, target, B, pool=None) -> tuple[dict, dict, dict]:
     ml_seeds, pc_seeds = seeds["ml80"], seeds["parcap"]
     a = [dist["ml80"][s][primary_name("ml80", seeds["meta"]["ml80"])] for s in ml_seeds]
     comparators = {"parcap": ([dist["parcap"][s]["full"] for s in pc_seeds], {"ml80": ml_seeds, "parcap": pc_seeds}),
@@ -156,7 +184,7 @@ def pre_registered_tests(dist, seeds, best, target, B) -> tuple[dict, dict, dict
     decision = bootstrap.decide(raw)
     tests, notes = {}, []
     for (m, c), r in raw.items():
-        note = _provisional(comparators[c][1])
+        note = _provisional(comparators[c][1], pool)
         notes.append(note)
         tests[f"{m}/{c}"] = _test_entry(r, {"holm_p": decision["holm"][f"{m}/{c}"], "favours": decision["favours"][f"{m}/{c}"],
                                             "provisional": note})
@@ -172,7 +200,7 @@ def pre_registered_tests(dist, seeds, best, target, B) -> tuple[dict, dict, dict
         for m in bootstrap.METRICS:  # ML-80+MAE (a) minus ML-80 (b); no Holm
             r = bootstrap.paired_bootstrap(b, a, target, m, B=B, seed=0)
             secondary[f"{m}/ml80_mae_vs_ml80"] = _test_entry(r, {"provisional": _provisional(
-                {"ml80_mae": mae_seeds, "ml80": ml_seeds})})
+                {"ml80_mae": mae_seeds, "ml80": ml_seeds}, pool)})
     return tests, secondary, decision
 
 
@@ -184,7 +212,18 @@ def between_view_mi(enc: dict, temperature: float) -> np.ndarray:
     return metrics.entropy_bits(p.mean(1)) - metrics.entropy_bits(p.reshape(-1, 9)).reshape(n, v).mean(1)
 
 
-def d6_tables(runs, arms, dist, best, seeds, target, B) -> dict:
+def boot_spearman(mis: list[np.ndarray], he: np.ndarray, B: int, seed: int = 0) -> np.ndarray:
+    """Mean over seeds of Spearman(mi, he); each replicate resamples the paintings (shared by the seeds) and the seeds."""
+    rng, n, S = np.random.default_rng(seed), len(he), len(mis)
+    draws = np.empty(B)
+    for r in range(B):
+        idx, drawn = rng.integers(0, n, n), rng.integers(0, S, S)
+        rho = [bootstrap._spearman_rows(m[idx], he[idx]) for m in mis]
+        draws[r] = np.mean([rho[i] for i in drawn])
+    return draws
+
+
+def d6_tables(runs, arms, dist, best, seeds, target, B, pool=None) -> dict:
     he = metrics.entropy_bits(target)
     out = {"K": {"views1": 1, "views4": 4, "views16": 16}, "arms": {}, "controls": {}}
 
@@ -203,11 +242,7 @@ def d6_tables(runs, arms, dist, best, seeds, target, B) -> dict:
         k16, k1 = res["views16"]["mean"], res["views1"]["mean"]
         res["k16_beats_k1"] = {"jsd": k16["jsd"] < k1["jsd"], "entropy_spearman": k16["entropy_spearman"] > k1["entropy_spearman"]}
         mis = [between_view_mi(runs[arm][s], arms[arm][s]["readouts"]["views16"]["T"]) for s in ss]
-        rng, n = np.random.default_rng(0), len(he)
-        draws = np.empty(B)
-        for r in range(B):
-            idx = rng.integers(0, n, n)
-            draws[r] = np.mean([bootstrap._spearman_rows(m[idx], he[idx]) for m in mis])
+        draws = boot_spearman(mis, he, B)
         per_seed = [bootstrap._spearman_rows(m, he) for m in mis]
         lo, hi = (float(x) for x in np.nanquantile(draws, [0.025, 0.975]))
         res["mi"] = {"spearman_per_seed": {str(s): float(x) for s, x in zip(ss, per_seed)}, "spearman_mean": float(np.mean(per_seed)),
@@ -218,14 +253,21 @@ def d6_tables(runs, arms, dist, best, seeds, target, B) -> dict:
                 "c_prompt_views16": [pair("c", s, "prompt_views16") for s in seeds.get("c", [])],
                 "strongest_probe_views16": [pair(best[s][0], s, "probe_views16") for s in seeds["complete"]]}
     out["controls"] = {k: mean_pair(v) for k, v in controls.items() if v}
+    out["missing_controls"] = [k for k, v in controls.items() if not v]
+    out["probe_pool_note"] = pool
     return out
 
 
-def _boot_mean(d: np.ndarray, B: int, seed: int = 0, chunk: int = 200) -> tuple[float, float]:
+def _boot_mean(d: np.ndarray, B: int, seed: int = 0, chunk: int = 100) -> tuple[float, float]:
+    """95% interval of the mean of d (seeds, captions): each replicate resamples the captions (shared by the seeds)
+    and the seeds, then averages over the drawn seeds."""
     rng, means = np.random.default_rng(seed), []
+    S, n = d.shape
     for start in range(0, B, chunk):
-        idx = rng.integers(0, len(d), (min(chunk, B - start), len(d)))
-        means.append(d[idx].mean(1))
+        c = min(chunk, B - start)
+        idx, drawn = rng.integers(0, n, (c, n)), rng.integers(0, S, (c, S))
+        per_seed = d[:, idx].mean(2)  # (S, c)
+        means.append(np.take_along_axis(per_seed, drawn.T, 0).mean(0))
     lo, hi = np.quantile(np.concatenate(means), [0.025, 0.975])
     return float(lo), float(hi)
 
@@ -259,7 +301,7 @@ def d7_tables(runs, arms, seeds, B) -> dict:
                 row[kind] = {"log_loss": float(ll[kind].mean()) if len(y) else None,
                              "accuracy": float(acc[kind].mean()) if len(y) else None}
             if len(y):
-                d = (ll["real"] - ll["null"]).mean(0)  # per caption, mean over seeds inside each replicate
+                d = ll["real"] - ll["null"]  # (seeds, captions)
                 lo, hi = _boot_mean(d, B)
                 row["real_minus_null"] = {"diff": float(d.mean()), "ci_low": lo, "ci_high": hi}
                 if arm == "ml80" and pattern in KILL_PATTERNS:
@@ -300,7 +342,7 @@ def build(encoded_root, annotations_dir=None, al28_csv=data.AL28_CSV, B: int = 1
     seeds["meta"] = {a: next(iter(runs[a].values()))["meta"] for a in present}
     best = strongest_probes(arms, seeds["complete"])
 
-    tests, secondary, decision = pre_registered_tests(dist, seeds, best, target, B)
+    tests, secondary, decision = pre_registered_tests(dist, seeds, best, target, B, pool_note(present))
     return {
         "runs": listing,
         "arms": {a: {str(s): v for s, v in by.items()} for a, by in arms.items()},
@@ -308,7 +350,7 @@ def build(encoded_root, annotations_dir=None, al28_csv=data.AL28_CSV, B: int = 1
                    "strongest": {str(s): {"arm": a, "val_nll": v} for s, (a, v) in best.items()}},
         "references": human_references(names, counts, al28_csv, min_votes, annotations_dir, cuts),
         "tests": {**tests, "secondary": secondary}, "decision": decision,
-        "d6": d6_tables(runs, arms, dist, best, seeds, target, B),
+        "d6": d6_tables(runs, arms, dist, best, seeds, target, B, pool_note(present)),
         "d7": d7_tables(runs, arms, seeds, B),
         "settings": {"B": B, "min_votes": min_votes, "seeds": {a: seeds[a] for a in present},
                      "complete_seeds": seeds["complete"], "entropy_third_cuts_bits": cuts.tolist()},

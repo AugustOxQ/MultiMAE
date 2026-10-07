@@ -34,9 +34,10 @@ def make_run(folder: Path, world, arm: str, seed: int, **meta_over):
     rng = np.random.default_rng(seed + 10 * list(ARMS).index(arm))
     counts = world["counts"]
     true = 0.9 * counts / counts.sum(1, keepdims=True) + 0.1 / 9
-    val_true = rng.dirichlet(np.ones(9) * 0.4, size=P)
+    shared = np.random.default_rng(777)  # the validation paintings and labels are the same for every run
+    val_true = shared.dirichlet(np.ones(9) * 0.4, size=P)
     index = np.repeat(np.arange(P), 5)
-    labels = np.array([rng.choice(9, p=val_true[i]) for i in index])
+    labels = np.array([shared.choice(9, p=val_true[i]) for i in index])
     arrays = {"al28_counts": counts, "val_index": index, "val_labels": labels,
               "al28_emb_full": rng.normal(size=(N, D)).astype(np.float16),
               "al28_emb_views": rng.normal(size=(N, V, D)).astype(np.float16),
@@ -199,10 +200,25 @@ def test_arm_of():
         tables.arm_of({"decoder": True, "mlm_image_source": "clean", "text_ratio": 0.8, "mae_weight": 0.0}, "f")
 
 
-def test_three_seeds_not_provisional(world, tmp_path):
+def test_missing_arm_is_provisional_and_names_the_probe_pool(world, tmp_path):
     root = make_root(tmp_path / "enc", world, seeds=(1, 2, 3), arms=("ml80", "parcap", "c"))
     res = tables.build(root, world["annotations"], world["csv"], B=50)
-    assert res["decision"]["provisional"] is None and "ml80_mae" not in res["arms"] and res["tests"]["secondary"] == {}
+    note = res["decision"]["provisional"]
+    assert note and "probe pool: ML-80, Par-cap, C" in note and "ML-80+MAE" in note
+    assert all(t["provisional"] and "probe pool" in t["provisional"] for k, t in res["tests"].items() if k != "secondary")
+    assert "ml80_mae" not in res["arms"] and res["tests"]["secondary"] == {}
+    assert res["d6"]["probe_pool_note"] and "ml80" not in res["d6"]["missing_controls"]
+    root = make_root(tmp_path / "enc2", world, seeds=(1, 2, 3), arms=("ml80", "ml80_mae", "parcap"))
+    res = tables.build(root, world["annotations"], world["csv"], B=50)
+    assert res["d6"]["missing_controls"] == ["c_prompt_views16"] and "probe pool: ML-80, ML-80+MAE, Par-cap" in res["decision"]["provisional"]
+
+
+def test_all_arms_three_seeds_not_provisional(world, tmp_path):
+    root = make_root(tmp_path / "enc", world, seeds=(1, 2, 3))
+    res = tables.build(root, world["annotations"], world["csv"], B=50)
+    assert res["decision"]["provisional"] is None and all(t["provisional"] is None for t in res["tests"].values() if "provisional" in t) and all(
+        t["provisional"] is None for t in res["tests"]["secondary"].values())
+    assert res["d6"]["missing_controls"] == [] and res["d6"]["probe_pool_note"] is None
 
 
 def test_probe_comparator_uses_complete_seeds(world, tmp_path):
@@ -224,12 +240,83 @@ def test_al28_votes_and_drop_other(world):
     assert (counts[:, :8] == od[:, :8]).all()
 
 
-def test_kill_check_flags_no_image_benefit(world, tmp_path):
+def _kill_rows(world, tmp_path, edit):
     root = make_root(tmp_path / "enc", world, seeds=(1, 2), arms=("ml80", "parcap", "c"))
-    for s in (1, 2):  # ML-80 reads the real image exactly as the null one
+    for s in (1, 2):
         z = dict(np.load(root / f"ml80_s{s}" / "encode.npz"))
-        z["d7_real"] = z["d7_null"]
+        z["d7_real"] = edit(z, np.random.default_rng(s)).astype(np.float16)
         np.savez(root / f"ml80_s{s}" / "encode.npz", **z)
-    rows = tables.build(root, world["annotations"], world["csv"], B=100)["d7"]["arms"]["ml80"]["patterns"]
-    assert all(rows[p]["no_image_benefit"] for p in tables.KILL_PATTERNS)
-    assert abs(rows["prefix2"]["real_minus_null"]["diff"]) < 1e-9
+    return tables.build(root, world["annotations"], world["csv"], B=300)["d7"]["arms"]["ml80"]["patterns"]
+
+
+def test_kill_rule_symmetric_effects_straddle_zero(world, tmp_path):
+    def symmetric(z, rng):  # the real image helps half of the captions and hurts the other half by the same logit
+        out = z["d7_null"].astype(np.float64).copy()
+        sign = np.where(np.arange(len(out)) % 2 == 0, 1.0, -1.0)
+        out[np.arange(len(out)), :, :, z["d7_label"]] += 1.5 * sign[:, None, None]
+        return out
+
+    rows = _kill_rows(world, tmp_path, symmetric)
+    for p in tables.KILL_PATTERNS:
+        d = rows[p]["real_minus_null"]
+        assert d["ci_low"] < 0 < d["ci_high"], (p, d)  # the scenario really straddles zero
+        assert rows[p]["no_image_benefit"] is True
+
+
+def test_kill_rule_real_worse_than_null_is_flagged(world, tmp_path):
+    def worse(z, rng):
+        out = z["d7_null"].astype(np.float64).copy()
+        out[np.arange(len(out)), :, :, z["d7_label"]] -= 3.0
+        return out
+
+    rows = _kill_rows(world, tmp_path, worse)
+    for p in tables.KILL_PATTERNS:
+        assert rows[p]["real_minus_null"]["ci_low"] > 0 and rows[p]["no_image_benefit"] is True
+
+
+def test_kill_rule_strong_benefit_is_not_flagged(result):
+    rows = result[0]["d7"]["arms"]["ml80"]["patterns"]
+    assert all(rows[p]["real_minus_null"]["ci_high"] < 0 and rows[p]["no_image_benefit"] is False for p in tables.KILL_PATTERNS)
+
+
+def test_d7_interval_resamples_seeds():
+    d = np.stack([np.full(50, -1.0), np.full(50, 1.0)])  # two seeds that disagree, no caption variance
+    lo, hi = tables._boot_mean(d, 400)
+    assert lo == -1.0 and hi == 1.0
+
+
+def test_d6_interval_resamples_seeds():
+    he = np.random.default_rng(0).normal(size=80)
+    draws = tables.boot_spearman([he, -he], he, 400)  # per-seed rho +1 and -1
+    lo, hi = np.quantile(draws, [0.025, 0.975])
+    assert lo < -0.9 and hi > 0.9
+
+
+def test_validation_labels_must_match_across_runs(world, tmp_path):
+    root = make_root(tmp_path / "enc", world, seeds=(1,), arms=("ml80", "parcap"))
+    z = dict(np.load(root / "parcap_s1" / "encode.npz"))
+    z["val_labels"] = (z["val_labels"] + 1) % 9
+    np.savez(root / "parcap_s1" / "encode.npz", **z)
+    with pytest.raises(ValueError, match="validation"):
+        tables.load_runs(root)
+
+
+def test_d7_arrays_and_views_are_required(world, tmp_path):
+    root = make_root(tmp_path / "enc", world, seeds=(1,), arms=("ml80", "parcap"))
+    z = {k: v for k, v in np.load(root / "ml80_s1" / "encode.npz").items() if not k.startswith("d7_")}
+    np.savez(root / "ml80_s1" / "encode.npz", **z)
+    with pytest.raises(ValueError, match="ml80_s1.*D7"):
+        tables.load_runs(root)
+    root = make_root(tmp_path / "enc2", world, seeds=(1,), arms=("ml80", "parcap"))
+    meta = json.loads((root / "ml80_s1" / "meta.json").read_text())
+    meta["d7_views"] = 2
+    (root / "ml80_s1" / "meta.json").write_text(json.dumps(meta))
+    with pytest.raises(ValueError, match="ml80_s1.*4 view"):
+        tables.load_runs(root)
+
+
+def test_t_at_bound_flag_and_english_has_no_kl(result):
+    res, md = result
+    assert all(isinstance(r["t_at_bound"], bool) for a in res["arms"].values() for s in a.values() for r in s["readouts"].values())
+    assert "kl" not in res["references"]["english"]
+    assert "`*` the fitted temperature" in md

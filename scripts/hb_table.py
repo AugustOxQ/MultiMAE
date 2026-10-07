@@ -90,7 +90,7 @@ def render(res: dict) -> str:
                 if rs:
                     rows.append([L[arm], name + (" (primary)" if name == next(iter(arms[arm].values()))["primary"] else "")]
                                 + [ms([r["metrics"][k] for r in rs]) for k in keys]
-                                + [ms([r["val_nll"] for r in rs], 4), ms([r["T"] for r in rs], 2)])
+                                + [ms([r["val_nll"] for r in rs], 4), ms([r["T"] for r in rs], 2) + ("*" if any(r["t_at_bound"] for r in rs) else "")])
         return rows
 
     head = ["arm", "readout", "JSD", "entropy rho", "KL(h||m)", "TVD", "RankCS", "val NLL", "T"]
@@ -99,6 +99,7 @@ def render(res: dict) -> str:
                                     else [next(iter(arms[a].values()))["primary"]]))
     out += ["## D4: every readout, each with its own temperature", ""]
     out += table(head, readout_rows(lambda a: list(next(iter(arms[a].values()))["readouts"])))
+    out += ["`*` the fitted temperature sits at a bound of the search range (|log T| >= 2.99) in at least one seed.", ""]
 
     out += ["## Strongest probe (comparator) metrics", ""]
     rows = []
@@ -162,6 +163,8 @@ def render(res: dict) -> str:
              "strongest_probe_views16": "strongest probe, 16 views"}
     out += ["Controls on the same 16 views:", ""]
     out += table(["control", "JSD", "entropy rho"], [[names[k], f(v["jsd"]), f(v["entropy_spearman"])] for k, v in d6["controls"].items()])
+    if d6["missing_controls"] or d6["probe_pool_note"]:
+        out += [f"Missing controls: {', '.join(d6['missing_controls']) or 'none'}. {d6['probe_pool_note'] or ''}", ""]
 
     out += ["## D7: partial captions (log-loss lower is better; difference is real minus null image)", ""]
     for arm, r in res["d7"]["arms"].items():
