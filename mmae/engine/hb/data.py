@@ -35,19 +35,44 @@ def _histograms(items: list[dict], keep) -> tuple[Paintings, np.ndarray]:
     return Paintings(names, [images[n] for n in names]), np.stack([counts[n] for n in names]) if names else np.zeros((0, 9))
 
 
-def al28_targets(csv: str | Path = AL28_CSV, min_votes: int = 20) -> tuple[Paintings, np.ndarray]:
-    """Per painting, the 9-class histogram of its non-English AL-28 votes ('other' merged into 'something else');
-    paintings with fewer than min_votes such votes are dropped. Sorted by painting name."""
+def _al28_items(csv: str | Path) -> list[dict]:
+    """The non-English AL-28 votes as items; 'other' is merged into 'something else' and flagged."""
     frame = pd.read_csv(csv, usecols=["painting", "emotion", "language", "image_name"])
     frame = frame[frame.language.str.lower() != "english"]
+    other = (frame.emotion == "other").tolist()
     frame = frame.assign(emotion=frame.emotion.replace(AL28_MERGE))
     unknown = set(frame.emotion) - set(EMOTION_INDEX)
     if unknown:
         raise ValueError(f"unknown AL-28 labels {sorted(unknown)}")
-    items = [{"painting": p, "emotion": e, "image": i} for p, e, i in zip(frame.painting, frame.emotion, frame.image_name)]
+    return [{"painting": p, "emotion": e, "image": i, "other": o}
+            for p, e, i, o in zip(frame.painting, frame.emotion, frame.image_name, other)]
+
+
+def al28_targets(csv: str | Path = AL28_CSV, min_votes: int = 20, drop_other: bool = False) -> tuple[Paintings, np.ndarray]:
+    """Per painting, the 9-class histogram of its non-English AL-28 votes ('other' merged into 'something else', or
+    removed when drop_other); paintings with fewer than min_votes such votes (counted with 'other') are dropped, so
+    both variants hold the same paintings. Sorted by painting name."""
+    items = _al28_items(csv)
     paintings, counts = _histograms(items, lambda _: True)
     keep = counts.sum(1) >= min_votes
-    return Paintings([n for n, k in zip(paintings.names, keep) if k], [i for i, k in zip(paintings.images, keep) if k]), counts[keep]
+    names = [n for n, k in zip(paintings.names, keep) if k]
+    images = [i for i, k in zip(paintings.images, keep) if k]
+    counts = counts[keep]
+    if drop_other:
+        kept = set(names)
+        sub = [it for it in items if it["painting"] in kept and not it["other"]]
+        sub_paintings, counts = _histograms(sub, lambda _: True)
+        if sub_paintings.names != names:
+            raise ValueError("some AL-28 paintings have only 'other' votes")
+    return Paintings(names, images), counts
+
+
+def al28_votes(csv: str | Path = AL28_CSV, min_votes: int = 20) -> dict[str, np.ndarray]:
+    """Per painting (same filter as al28_targets), the label index of each non-English vote, 'other' merged."""
+    votes: dict[str, list[int]] = defaultdict(list)
+    for it in _al28_items(csv):
+        votes[it["painting"]].append(EMOTION_INDEX[it["emotion"]])
+    return {p: np.array(v, dtype=np.int64) for p, v in sorted(votes.items()) if len(v) >= min_votes}
 
 
 def english_counts(names: list[str], annotations_dir: str | Path) -> np.ndarray:

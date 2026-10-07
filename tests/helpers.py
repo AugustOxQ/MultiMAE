@@ -218,14 +218,14 @@ def make_fake_artelingo(root: Path) -> tuple[Path, Path, Path]:
     return images_dir, annotations_dir, heldout
 
 
-def make_fake_al28(path: Path, paintings: dict[str, str]) -> Path:
+def make_fake_al28(path: Path, paintings: dict[str, str], votes: int = 25, classes=None) -> Path:
     """An AL-28-format CSV: painting -> image_name; votes in three languages incl. English and one 'other'."""
     import csv
 
     rows = []
     for k, (painting, image) in enumerate(paintings.items()):
-        for v in range(25):
-            emotion = "other" if v == 1 else ARTELINGO_EMOTIONS[(k + v) % 3]  # v == 1 is a Hausa vote
+        for v in range(votes):
+            emotion = "other" if v == 1 else ARTELINGO_EMOTIONS[(k + v) % (3 if classes is None else classes(k))]  # v == 1 is a Hausa vote
             rows.append({"image_id": float(k), "genre": "g", "emotion": emotion, "caption": "c", "art_style": "Style_A",
                          "painting": painting, "language": ("english", "Hausa", "Thai")[v % 3], "image_name": image,
                          "split": "train"})
