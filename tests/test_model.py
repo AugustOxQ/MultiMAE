@@ -116,7 +116,11 @@ def recorder(model: MultiMAE, monkeypatch):
 
         def wrapped(*args, _original=original, _key=key, **kwargs):
             result = _original(*args, **kwargs)
-            masks[_key] = result[1] if _key == "patch" else result
+            if _key == "patch":
+                masks["ids_keep"] = result[0]
+                masks[_key] = result[1]
+            else:
+                masks[_key] = result
             return result
 
         monkeypatch.setattr(model_module, attr, wrapped)

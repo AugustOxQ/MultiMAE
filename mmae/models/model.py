@@ -140,6 +140,26 @@ class MultiMAE(nn.Module):
     def embed_text(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         return self.text.embed(input_ids, attention_mask)
 
+    def decode_text(
+        self, pixel_values: torch.Tensor, input_ids: torch.Tensor, attention_mask: torch.Tensor,
+        token_mask: torch.Tensor, ids_keep: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        """The caption decoder's outputs for given masks, as in forward's masked pass: the decoder reads the fusion
+        of the image patches in ids_keep (all patches if None, whatever mlm_image_source is) and the caption with
+        token_mask hidden. Returns (caption logits (B, T, vocab), emotion logits (B, 9) or None). For the H-b
+        readouts (spec 2026-10-07, section 6.1); forward is unchanged."""
+        if not (self.reconstruction and self.use_image and self.use_text) or self.pooled_conditioning:
+            raise ValueError("decode_text needs a two-modality reconstruction model without pooled conditioning")
+        image_tokens = self.image_proj(self.vision.encode(pixel_values, ids_keep))
+        text_tokens = self.text_proj(self.text.encode(input_ids, attention_mask, token_mask))
+        text_padding = ~attention_mask.bool()
+        fused = self.fusion(image_tokens, text_tokens, text_padding)
+        decoded = self.text_decoder(fused.text_memory, fused.text_padding, query_padding=text_padding)
+        if self.emotion_head:
+            logits, emotion = decoded
+            return logits, emotion[:, 0]
+        return decoded, None
+
     def forward(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         images = batch.get("pixel_values")
         input_ids = batch.get("input_ids")
