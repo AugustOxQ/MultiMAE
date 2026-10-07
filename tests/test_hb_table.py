@@ -50,7 +50,7 @@ def make_run(folder: Path, world, arm: str, seed: int, **meta_over):
             "lengths": list(range(5, 14)), "al28": world["names"], "val": [], "train": []}
     if ARMS[arm]:
         source, ratio, mae = ARMS[arm]
-        meta.update(mlm_image_source=source, text_ratio=ratio, mae_weight=mae, d7_views=4 if source == "masked" else 1)
+        meta.update(mlm_image_source=source, text_ratio=ratio, mae_weight=mae, d7_views=4)  # as the encoder writes it, Par-cap too
         blur = arm == "parcap"
         perm = rng.permutation(N)
         for pre, t, n in (("al28", true, N), ("val", val_true, P)):
@@ -320,3 +320,16 @@ def test_t_at_bound_flag_and_english_has_no_kl(result):
     assert all(isinstance(r["t_at_bound"], bool) for a in res["arms"].values() for s in a.values() for r in s["readouts"].values())
     assert "kl" not in res["references"]["english"]
     assert "`*` the fitted temperature" in md
+
+
+def test_parcap_folder_with_encoder_style_meta_loads(world, tmp_path):
+    root = make_root(tmp_path / "enc", world, seeds=(1,), arms=("ml80", "parcap"))
+    meta = json.loads((root / "parcap_s1" / "meta.json").read_text())
+    enc = np.load(root / "parcap_s1" / "encode.npz")
+    assert meta["d7_views"] == 4 and enc["d7_real"].shape[2] == 1  # the real encoder's layout
+    assert 1 in tables.load_runs(root)[0]["parcap"]
+    z = dict(enc)
+    z["d7_null"] = np.repeat(z["d7_null"], 2, axis=2)  # a wrong view axis still raises
+    np.savez(root / "parcap_s1" / "encode.npz", **z)
+    with pytest.raises(ValueError, match="parcap_s1.*1 view"):
+        tables.load_runs(root)

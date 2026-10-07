@@ -157,7 +157,7 @@ def render(res: dict) -> str:
                     + [f"JSD {'yes' if r['k16_beats_k1']['jsd'] else 'no'}, rho {'yes' if r['k16_beats_k1']['entropy_spearman'] else 'no'}"])
     out += table(["arm", "K = 1", "K = 4", "K = 16", "full image", "K = 16 beats K = 1"], rows)
     out += table(["arm", "Spearman(between-view MI, human entropy)", "95% interval", "kill (interval includes zero)"],
-                 [[L[a], f(r["mi"]["spearman_mean"]), f"[{f(r['mi']['ci_low'])}, {f(r['mi']['ci_high'])}]",
+                 [[L[a], f(r["mi"]["spearman_mean"]), f"[{f(r['mi']['ci_low'])}, {f(r['mi']['ci_high'])}] (NaN draws: {r['mi']['nan_draws']})",
                    "yes" if r["mi"]["interval_includes_zero"] else "no"] for a, r in d6["arms"].items()])
     names = {"parcap_views16": "Par-cap, 16 views", "c_prompt_views16": "C prompt softmax, 16 views",
              "strongest_probe_views16": "strongest probe, 16 views"}

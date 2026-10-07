@@ -67,9 +67,12 @@ def check_d7(enc: dict, arm: str, folder) -> None:
     if "d7_real" not in enc or "d7_null" not in enc:
         raise ValueError(f"{folder}: decoder run without D7 arrays (encoded with --skip-d7?)")
     want = 1 if arm == "parcap" else 4
-    if enc["meta"].get("d7_views") != want or enc["d7_real"].shape[2] != want or enc["d7_null"].shape[2] != want:
+    shapes = (enc["d7_real"].shape, enc["d7_null"].shape)
+    # the encoder writes meta d7_views for every run, but a clean-source model has a view axis of 1 whatever it says
+    meta_bad = arm != "parcap" and enc["meta"].get("d7_views") != want
+    if meta_bad or any(sh[2] != want for sh in shapes):
         raise ValueError(f"{folder}: D7 must use {want} view(s) for {arm}, got meta d7_views={enc['meta'].get('d7_views')!r}, "
-                         f"d7_real {enc['d7_real'].shape}")
+                         f"d7_real {shapes[0]}, d7_null {shapes[1]}")
 
 
 def agreement(p: np.ndarray, h: np.ndarray, cuts: np.ndarray | None = None) -> dict:
