@@ -5,7 +5,7 @@
 data:
   name: artelingo
   images_dir: /local/wding/Dataset/wikiart_proj/wikiart
-  annotations_dir: /local/wding/Dataset/artelingo
+  annotations_dir: /local/wding/Dataset/artelingo_mmae   # the 5 JSONs the runs read (local: hard links in /data/PDD/artelingo_mmae)
   heldout_file: null
   max_text_len: 40
   limit_train: null

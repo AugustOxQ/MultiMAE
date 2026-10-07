@@ -24,7 +24,7 @@ def test_configs():
     assert local.data.name == "artelingo" and local.data.max_text_len == 40 == cluster.data.max_text_len
     assert local.eval.extended_metrics is False and cluster.eval.extended_metrics is False
     assert cluster.data.images_dir == "/local/wding/Dataset/wikiart_proj/wikiart"
-    assert cluster.data.annotations_dir == "/local/wding/Dataset/artelingo"
+    assert cluster.data.annotations_dir == "/local/wding/Dataset/artelingo_mmae"
     assert cluster.paths.res_dir == "/local/wding/res/MultiMAE/artelingo"
     assert dataset_name(compose_cfg().data) == "coco"  # COCO configs carry no name
 
