@@ -30,9 +30,13 @@ class Collator:
             )
         return out
 
-    def pairs(self, batch: list[tuple[torch.Tensor, str]]) -> dict[str, torch.Tensor]:
-        images, captions = zip(*batch)
-        return {"pixel_values": torch.stack(images), **self.tokenize(list(captions))}
+    def pairs(self, batch: list[tuple]) -> dict[str, torch.Tensor]:
+        """Items are (image, caption) or, for ArtELingo, (image, caption, emotion index)."""
+        images, captions, *rest = zip(*batch)
+        out = {"pixel_values": torch.stack(images), **self.tokenize(list(captions))}
+        if rest:
+            out["emotion"] = torch.tensor(rest[0], dtype=torch.long)
+        return out
 
     def retrieval(self, batch: list[tuple[torch.Tensor, list[str]]]) -> dict[str, torch.Tensor]:
         images, captions = zip(*batch)

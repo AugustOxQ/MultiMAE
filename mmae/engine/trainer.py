@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 
-from mmae.data import CocoPairs, CocoRetrieval, Collator, build_image_transform
+from mmae.data import Collator, build_image_transform, build_pairs, build_retrieval
 from mmae.engine.eccv import build_extended_metrics
 from mmae.engine.retrieval import encode_retrieval_set, retrieval_metrics
 from mmae.losses import MAX_LOGIT_SCALE
@@ -76,7 +76,7 @@ class Trainer:
         self.collator = Collator(processor, dcfg.max_text_len, content_words=content_words)
 
         model = MultiMAE(mcfg, max_text_len=dcfg.max_text_len)
-        train_set = CocoPairs(dcfg.images_dir, dcfg.annotations_dir, "train", self.transform, dcfg.limit_train)
+        train_set = build_pairs(dcfg, "train", self.transform, dcfg.limit_train)
         generator = torch.Generator().manual_seed(int(cfg.seed)) if tcfg.get("seeded_sampler", False) else None
         train_loader = self._loader(train_set, tcfg.batch_size, shuffle=True, drop_last=True,
                                     collate=self.collator.pairs, generator=generator)
@@ -132,13 +132,13 @@ class Trainer:
             d, batch = self.cfg.data, self.cfg.train.eval_batch_size
             limit = d.limit_val if split == "val" else d.limit_test
             pairs = self._loader(
-                CocoPairs(d.images_dir, d.annotations_dir, split, self.transform, limit),
+                build_pairs(d, split, self.transform, limit),
                 batch, shuffle=False, drop_last=False, collate=self.collator.pairs,
             )
             retrieval = None
             if self.two_modalities:
                 retrieval = self._loader(
-                    CocoRetrieval(d.images_dir, d.annotations_dir, split, self.transform, limit),
+                    build_retrieval(d, split, self.transform, limit),
                     batch, shuffle=False, drop_last=False, collate=self.collator.retrieval,
                 )
                 pairs, retrieval = self.accelerator.prepare(pairs, retrieval)

@@ -16,7 +16,7 @@ from accelerate import Accelerator
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
-from mmae.data import CocoRetrieval, Collator, build_image_transform
+from mmae.data import Collator, build_image_transform, build_retrieval
 from mmae.engine.eccv import build_extended_metrics
 from mmae.engine.retrieval import encode_retrieval_set, retrieval_metrics
 from mmae.engine.vwsd import evaluate_vwsd
@@ -58,9 +58,8 @@ def main(cfg: DictConfig) -> None:
         log.info("zero-shot evaluation of %s", model_cfg.backbone.pretrained)
 
     data, processor = cfg.data, processor_name(model_cfg.backbone)
-    dataset = CocoRetrieval(
-        data.images_dir, data.annotations_dir, split, build_image_transform(processor),
-        data.limit_val if split == "val" else data.limit_test,
+    dataset = build_retrieval(
+        data, split, build_image_transform(processor), data.limit_val if split == "val" else data.limit_test,
     )
     loader = DataLoader(
         dataset, batch_size=cfg.train.eval_batch_size, shuffle=False, num_workers=cfg.train.num_workers,

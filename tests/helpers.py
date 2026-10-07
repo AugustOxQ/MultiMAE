@@ -153,6 +153,19 @@ def run_train(cwd: Path, fake_coco, *overrides: str, nproc: int = 1, script: str
     return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=1200)
 
 
+def run_train_artelingo(cwd: Path, fake_artelingo, *overrides: str, script: str = "train.py") -> subprocess.CompletedProcess:
+    """Run train.py (or evaluate.py) on the fake ArtELingo with the tiny CLIP on CPU, from `cwd`."""
+    images_dir, annotations_dir, heldout = fake_artelingo
+    args = [
+        "data=artelingo", f"data.images_dir={images_dir}", f"data.annotations_dir={annotations_dir}",
+        f"data.heldout_file={heldout}", "model.backbone.pretrained=tiny-random-clip", "train=debug",
+        "train.num_workers=0", f"paths.res_dir={cwd / 'res'}", *overrides,
+    ]
+    env = {**os.environ, "CUDA_VISIBLE_DEVICES": "", "ACCELERATE_USE_CPU": "1", "WANDB_MODE": "disabled"}
+    return subprocess.run([sys.executable, str(REPO / script), *args], cwd=cwd, env=env,
+                          capture_output=True, text=True, timeout=1200)
+
+
 def add_emotion(batch: dict) -> dict:
     """An ArtELingo-style emotion label per caption (class index in 0..8)."""
     b = batch["input_ids"].shape[0]

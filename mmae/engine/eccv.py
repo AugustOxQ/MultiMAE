@@ -49,6 +49,7 @@ from eccv_caption import Metrics
 from omegaconf import DictConfig
 
 from mmae.data.coco import retrieval_items
+from mmae.data.factory import dataset_name
 
 log = logging.getLogger(__name__)
 
@@ -300,6 +301,8 @@ def build_extended_metrics(cfg: DictConfig, split: str, two_modalities: bool) ->
     not COCO's 5,000 images (one info line)."""
     if not cfg.eval.extended_metrics or split != "test" or not two_modalities:
         return None
+    if dataset_name(cfg.data) != "coco":
+        return None  # ECCV Caption, CxC, COCO 1K and PMRP exist for COCO only
     reason = None
     if cfg.data.limit_test is not None:
         reason = f"data.limit_test={cfg.data.limit_test}; they need the full test split"

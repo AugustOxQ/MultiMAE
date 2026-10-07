@@ -1,0 +1,15 @@
+# @package _global_
+# ArtELingo English (WikiArt paintings) for H-b (spec docs/superpowers/specs/2026-10-07-hb-first-artelingo-design.md).
+# Selected with data=artelingo; this file replaces data/coco.yaml. The ArtELingo-28 paintings are held out of train
+# and validation (data.heldout_file; null = mmae/data/al28_paintings.txt). Extended COCO metrics do not apply.
+data:
+  name: artelingo
+  images_dir: /data/PDD/wikiart_proj/wikiart
+  annotations_dir: /data/PDD/artelingo   # artelingo_{train,val,test}.json, artelingo_{val,test}_retrieval.json
+  heldout_file: null
+  max_text_len: 40     # with BOS and EOS, 2.6% of train captions exceed 32 tokens and 0.02% exceed 40
+  limit_train: null
+  limit_val: null
+  limit_test: null
+eval:
+  extended_metrics: false

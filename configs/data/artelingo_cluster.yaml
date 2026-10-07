@@ -1,0 +1,17 @@
+# @package _global_
+# Cluster (DAS6 node) copy of data/artelingo.yaml: repeats every key of artelingo.yaml (a test checks the key sets
+# match) with the node data paths, and sets paths.res_dir strictly under the cluster profile's RESULTS_REMOTE
+# (pulls to res/artelingo/). The cluster-run skill keeps a shared copy of this file.
+data:
+  name: artelingo
+  images_dir: /local/wding/Dataset/wikiart_proj/wikiart
+  annotations_dir: /local/wding/Dataset/artelingo
+  heldout_file: null
+  max_text_len: 40
+  limit_train: null
+  limit_val: null
+  limit_test: null
+eval:
+  extended_metrics: false
+paths:
+  res_dir: /local/wding/res/MultiMAE/artelingo   # strictly under the cluster profile's RESULTS_REMOTE; pulls to res/artelingo/
