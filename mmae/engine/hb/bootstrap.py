@@ -56,6 +56,14 @@ def paired_bootstrap(a, b, human, metric: str, B: int = 10000, seed: int = 0) ->
         sa = rng.integers(0, len(a), len(a))
         sb = rng.integers(0, len(b), len(b))
         draws[r] = stat(per_a, sa, idx) - stat(per_b, sb, idx)
+
+    # Fail loudly if NaN appears (e.g. constant-entropy seed, degenerate readout)
+    if np.isnan(diff):
+        raise ValueError(f"metric={metric}: observed difference is NaN (possibly a constant-entropy readout)")
+    nan_count = np.sum(np.isnan(draws))
+    if nan_count > 0:
+        raise ValueError(f"metric={metric}: {nan_count}/{B} bootstrap draws are NaN (possibly a constant-entropy seed)")
+
     return {"diff": diff, "ci_low": float(np.quantile(draws, 0.025)), "ci_high": float(np.quantile(draws, 0.975)),
             "p": two_sided_p(draws), "draws": draws}
 

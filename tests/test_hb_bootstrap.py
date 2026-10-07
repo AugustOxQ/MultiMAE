@@ -46,3 +46,15 @@ def test_decide_support_rule():
     assert out["support"] is True and out["supporting_metric"] == "jsd"
     flipped = {k: {"p": p[k], "diff": -diffs[k]} for k in p}
     assert bootstrap.decide(flipped)["support"] is False
+
+
+def test_constant_entropy_raises_nan_error():
+    """A constant-entropy readout (identical distributions for all paintings) produces NaN in
+    Spearman correlation and must fail loudly, not silently turn p=0."""
+    # Create a seed with constant distribution (all rows identical)
+    constant_dist = np.ones((300, 9)) / 9  # uniform, identical entropy for all items
+    constant_arm = [constant_dist]
+    good_arm = arm(0.01, seeds=1)
+
+    with pytest.raises(ValueError, match="NaN"):
+        bootstrap.paired_bootstrap(constant_arm, good_arm, H, "entropy_spearman", B=100)
