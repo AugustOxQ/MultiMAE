@@ -3,10 +3,11 @@
 For each painting: the emotion logits of the caption decoder with the caption fully hidden, for every caption length
 of the grid, on V random 25% views and on the full image (decoder models only); the pooled image embedding of the
 full image and of each view (every model). For D7: the emotion logits for every test caption with j content tokens
-visible (prefix and random subset), on the real image (views or full) and on the null image. The null image uses all
-patches even for masked-source models: with no image content the view is irrelevant.
+visible (prefix and random subset), on the real image and on the null image, both through the same D7 views for
+masked-source models (the decoder never read a full 49-patch fusion in training) and the full image for the others.
 
-On CUDA the forward passes run under bf16 autocast; logits and embeddings are cast to float32 and saved as float16."""
+Forward passes run in float32 (as in training); bf16=True opts into CUDA bf16 autocast. Logits and embeddings are
+saved as float16."""
 from __future__ import annotations
 
 import contextlib
@@ -41,8 +42,8 @@ def has_decoder(model: MultiMAE) -> bool:
                 and not model.pooled_conditioning)
 
 
-def _autocast(device):
-    if torch.device(device).type == "cuda":
+def _autocast(device, bf16: bool = False):
+    if bf16 and torch.device(device).type == "cuda":
         return torch.autocast("cuda", dtype=torch.bfloat16)
     return contextlib.nullcontext()
 
@@ -100,7 +101,7 @@ def _emotion_logits(model, images, hidden, ids_keep) -> torch.Tensor:
 
 @torch.no_grad()
 def encode_paintings(model, image_paths, images_dir, transform, hidden, views, batch_size, device,
-                     workers: int = 8) -> dict[str, np.ndarray]:
+                     workers: int = 8, bf16: bool = False) -> dict[str, np.ndarray]:
     decoder = has_decoder(model)
     hidden = {k: v.to(device) for k, v in hidden.items()}
     keys = ["emb_full", "emb_views"] + (["dec_views", "dec_full"] if decoder else [])
@@ -108,7 +109,7 @@ def encode_paintings(model, image_paths, images_dir, transform, hidden, views, b
     for index, images in _loader(image_paths, images_dir, transform, batch_size, workers):
         images = images.to(device)
         batch_views = views[:, index].to(device)  # (V, B, 13)
-        with _autocast(device):
+        with _autocast(device, bf16):
             chunks["emb_full"].append(_half(model.vision.pool(model.vision.encode(images))))
             chunks["emb_views"].append(torch.stack(
                 [_half(model.vision.pool(model.vision.encode(images, ids))) for ids in batch_views], dim=1))
@@ -120,20 +121,21 @@ def encode_paintings(model, image_paths, images_dir, transform, hidden, views, b
 
 
 @torch.no_grad()
-def encode_embeddings(model, image_paths, images_dir, transform, batch_size, device, workers: int = 8) -> np.ndarray:
+def encode_embeddings(model, image_paths, images_dir, transform, batch_size, device, workers: int = 8,
+                      bf16: bool = False) -> np.ndarray:
     """(N, D) float16 pooled embeddings of the full images."""
     out = []
     for _, images in _loader(image_paths, images_dir, transform, batch_size, workers):
-        with _autocast(device):
+        with _autocast(device, bf16):
             out.append(_half(model.vision.pool(model.vision.encode(images.to(device)))))
     return torch.cat(out).numpy()
 
 
 @torch.no_grad()
-def prompt_embeddings(model, tokenizer, max_text_len, device, labels) -> np.ndarray:
+def prompt_embeddings(model, tokenizer, max_text_len, device, labels, bf16: bool = False) -> np.ndarray:
     enc = tokenizer([f"a painting that evokes {label}." for label in labels], max_length=max_text_len,
                     truncation=True, padding="max_length", return_tensors="pt")
-    with _autocast(device):
+    with _autocast(device, bf16):
         z = model.embed_text(enc["input_ids"].to(device), enc["attention_mask"].to(device))
     return z.float().cpu().numpy()
 
@@ -163,8 +165,10 @@ def _d7_logits(model, images, ids, am, tm, ids_keep) -> torch.Tensor:
 
 @torch.no_grad()
 def encode_d7(model, captions, images_dir, transform, tokenizer, max_text_len, n_views, batch_size, device,
-              workers: int = 8) -> dict[str, np.ndarray]:
-    """Emotion logits for every test caption under the 9 visibility patterns (spec section 9)."""
+              workers: int = 8, bf16: bool = False) -> dict[str, np.ndarray]:
+    """Emotion logits for every test caption under the 9 visibility patterns (spec section 9): d7_real and d7_null are
+    (n, 9, V', 9), V' = n_views for mlm_image_source=masked and 1 (full image) otherwise. Rows with d7_valid False
+    (fewer content tokens than the pattern needs) hold fully-hidden-caption logits; the caller must mask them."""
     enc = tokenizer([c["caption"] for c in captions], max_length=max_text_len, truncation=True,
                     padding="max_length", return_attention_mask=True, return_special_tokens_mask=True,
                     return_tensors="pt")
@@ -189,13 +193,13 @@ def encode_d7(model, captions, images_dir, transform, tokenizer, max_text_len, n
         images = images.to(device)
         ids, am = enc["input_ids"][index].to(device), enc["attention_mask"][index].to(device)
         tm = token_masks[index].to(device)
-        with _autocast(device):
-            if masked_source:
-                per_view = [_d7_logits(model, images, ids, am, tm, views[v, index].to(device))
-                            for v in range(n_views)]
-            else:
-                per_view = [_d7_logits(model, images, ids, am, tm, None)]
-            real_out.append(_half(torch.stack(per_view, dim=2)))  # (B, P, V', 9)
-            null_out.append(_half(_d7_logits(model, torch.zeros_like(images), ids, am, tm, None)))
+        with _autocast(device, bf16):
+            for image_batch, store in ((images, real_out), (torch.zeros_like(images), null_out)):
+                if masked_source:
+                    per_view = [_d7_logits(model, image_batch, ids, am, tm, views[v, index].to(device))
+                                for v in range(n_views)]
+                else:
+                    per_view = [_d7_logits(model, image_batch, ids, am, tm, None)]
+                store.append(_half(torch.stack(per_view, dim=2)))  # (B, P, V', 9)
     return {"d7_real": torch.cat(real_out).numpy(), "d7_null": torch.cat(null_out).numpy(),
             "d7_valid": valid.numpy(), "d7_label": np.array([c["emotion"] for c in captions], dtype=np.int64)}
