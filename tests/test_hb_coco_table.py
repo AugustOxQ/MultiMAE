@@ -90,6 +90,7 @@ def d1_dir(tmp_path, monkeypatch):
         write_d1_run(root, f"2026_{seed}_hurt", "fam_hurt", seed, "hurt")
         write_d1_run(root, f"2026_{seed}_help", "fam_help", seed, "help_top", beta=0.0)
         write_d1_run(root, f"2026_{seed}_noise", "fam_noise", seed, "noise")
+        write_d1_run(root, f"2026_{seed}_ctrl", table.CONTROL, seed, "noise")
     return root
 
 
@@ -116,7 +117,27 @@ def test_collapsed_fraction_and_sources(d1_dir, tmp_path):
     # the beta-0 (b) re-ranker equals the dual order
     help_st = out["families"]["fam_help"]["stats"]
     assert help_st["parallel/tuned_b/all/map_diff"]["mean"] == pytest.approx(0.0, abs=1e-9)
-    assert out["families"]["fam_hurt"]["sanity_max_abs_dec_minus_null"]["parallel"] > 0
+    # the fusion_none sanity check is control-only: n/a elsewhere
+    assert out["families"]["fam_hurt"]["sanity_max_abs_dec_minus_null"] == {"parallel": None, "ratio": None}
+    assert out["families"][table.CONTROL]["sanity_max_abs_dec_minus_null"]["parallel"] > 0
+    assert out["families"]["fam_hurt"]["mixed_vintage"] is False
+
+
+def test_nan_max_ignores_missing():
+    assert table.nan_max([float("nan"), 0.5, 0.25]) == 0.5
+    assert table.nan_max([float("nan")]) is None and table.nan_max([]) is None
+
+
+def test_mixed_vintage_is_flagged_in_markdown(d1_dir, tmp_path, monkeypatch):
+    real = table.checkpoint_summary
+    def one_fallback(folder, fn, ann):  # the first hurt run falls back to d1.json
+        return real(folder, fn, None if folder.name == "2026_42_hurt" else ann)
+    monkeypatch.setattr(table, "checkpoint_summary", one_fallback)
+    out = table.d1_summary(d1_dir, tmp_path, table.load_positives)
+    assert out["families"]["fam_hurt"]["mixed_vintage"] is True
+    assert out["families"]["fam_help"]["mixed_vintage"] is False
+    md = "\n".join(table.d1_markdown(out))
+    assert md.count("NOTE: mixed vintages") == 1 and "mixed vintages, see below" in md
 
 
 def test_json_fallback_matches_recompute(d1_dir, tmp_path):
@@ -175,11 +196,11 @@ def write_d2_run(root: Path, name: str, decoder: bool, bc: float, rerank_bc: flo
     np.savez_compressed(folder / "d2_scores.npz", **arrays)
 
 
-def build_d2(root: Path, c_bc: float, dec_bc: float) -> None:
+def build_d2(root: Path, c_bc: float, dec_bc: float, control_bc: float | None = None) -> None:
     for seed in (42, 43):
         write_d2_run(root, f"20261005_0916{seed}_s2_contrastive", False, c_bc, 0, seed=seed)
         write_d2_run(root, f"20261005_0916{seed}_s2_txt80", True, 0.02, dec_bc, seed=seed)
-        write_d2_run(root, f"20261005_0916{seed}_s2_none_txt80", True, 0.02, dec_bc, flat_balance=True, seed=seed)
+        write_d2_run(root, f"20261005_0916{seed}_s2_none_txt80", True, 0.02, dec_bc if control_bc is None else control_bc, flat_balance=True, seed=seed)
     write_d2_run(root, "zeroshot", False, 0.03, 0)
 
 
@@ -194,6 +215,19 @@ def test_d2_rule_and_none_control(tmp_path):
     assert k["families"]["s2_txt80"]["stats"]["decoder/selection/0/pooled/median"]["n"] == 2
     assert k["families"]["zeroshot"]["stats"]["decoder_present"] is False
     assert k["kill_rule"]["C_ceiling50"]["blend_0.5"] == pytest.approx(5.0)
+
+
+def test_d2_best_decoder_excludes_text_only_control(tmp_path):
+    kill, strong = tmp_path / "kill", tmp_path / "strong"
+    build_d2(kill, c_bc=0.03, dec_bc=0.04)
+    build_d2(strong, c_bc=0.03, dec_bc=0.04, control_bc=0.50)  # a control far ahead of every real decoder
+    ks, kc = table.d2_summary(strong)["kill_rule"], table.d2_summary(kill)["kill_rule"]
+    assert ks["verdict"] == kc["verdict"] == "KILL"
+    row = ks["per_condition"]["blend_0.5"]["by_k"]["5"]
+    assert row["best_family"] == "s2_txt80" and row["best_decoder"] == pytest.approx(4.0)
+    assert row["text_only_control"] == pytest.approx(50.0)  # reported separately
+    md = "\n".join(table.d2_markdown(table.d2_summary(strong)))
+    assert "text-only control 50.00" in md
 
 
 # ---------------------------------------------------------------- CLI
@@ -218,3 +252,21 @@ def test_cli_writes_both_files_and_skips_missing_parts(d1_dir, tmp_path):
     assert r.returncode == 0
     data = json.loads((tmp_path / "out2" / "hb_coco.json").read_text())
     assert "d1" not in data and len(data["notes"]) == 2
+
+
+def kill_stats(mean, sd, top):
+    """Hand-made stats: every alpha has the same overall paired diff (mean, SD) and top-third diff."""
+    st = {}
+    for a in cp.ALPHAS:
+        st[f"parallel/grid_a/{a}/all/map_diff"] = {"mean": mean, "sd": sd, "n": 3}
+        st[f"parallel/grid_a/{a}/{table.TOP_THIRD}/map_diff"] = {"mean": top, "sd": sd, "n": 3}
+    return st
+
+
+def test_kill_rule_sign_and_threshold():
+    """The diff must be BELOW minus its SD: a loss inside the SD, or any gain, is not a kill."""
+    kill = lambda m, sd, top: table.kill_rule(kill_stats(m, sd, top), "parallel", 3)["verdict"]
+    assert kill(-2.0, 1.0, -1.0) == "KILL"
+    assert kill(-0.5, 1.0, -1.0) == "NOT KILLED"  # inside the SD
+    assert kill(+2.0, 1.0, -1.0) == "NOT KILLED"  # a gain
+    assert kill(-2.0, 1.0, +0.1) == "NOT KILLED"  # positive in the top third

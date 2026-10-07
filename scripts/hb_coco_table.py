@@ -42,6 +42,7 @@ FAMILIES = {
 DEFAULT_ANNOTATIONS = Path("/data/SSD/coco/annotations")
 D2_KS = (5, 10, 20)
 COVER_TOL = 2.0  # points
+CONTROL = "s2_none_txt80"  # text-only control: reads no image, so it is never a decoder for D2's kill rule
 
 
 # ---------------------------------------------------------------- generic helpers
@@ -194,6 +195,12 @@ def kill_rule(stats: dict, kind: str, n_seeds: int) -> dict:
     return {"verdict": verdict, "per_alpha": per_alpha}
 
 
+def nan_max(values: list[float]) -> float | None:
+    """Max over the available (non-NaN) values; None when there are none."""
+    a = np.asarray(values, dtype=float)
+    return float(np.nanmax(a)) if a.size and not np.isnan(a).all() else None
+
+
 def d1_summary(d1_dir: Path, annotations_dir: Path | None, positives_fn) -> dict:
     cks = [checkpoint_summary(f.parent, positives_fn, annotations_dir) for f in sorted(d1_dir.glob("*/d1.json"))]
     fams = {}
@@ -207,9 +214,12 @@ def d1_summary(d1_dir: Path, annotations_dir: Path | None, positives_fn) -> dict
             "stats": stats,
             "kill_rule_a": {kind: kill_rule(stats, kind, len(group)) for kind in KINDS},
             "collapsed_b_fraction": {kind: float(np.mean([c["collapsed_b"][kind] for c in group])) for kind in KINDS},
-            "sanity_max_abs_dec_minus_null": {
-                kind: max((c["sanity_max_abs_dec_minus_null"].get(kind, float("nan")) for c in group), default=None)
-                for kind in KINDS},
+            "sources": sorted({c["source"] for c in group}),
+            "mixed_vintage": len({c["source"] == "scores.npz" for c in group}) > 1,
+            # control-only check (fusion_none must give dec == null); None (n/a) for every other family
+            "sanity_max_abs_dec_minus_null": {kind: nan_max([c["sanity_max_abs_dec_minus_null"].get(kind, float("nan"))
+                                                             for c in group]) for kind in KINDS} if fam == CONTROL
+            else {kind: None for kind in KINDS},
         }
     return out
 
@@ -274,7 +284,8 @@ def d2_kill_rule(fams: dict) -> dict:
     """The review's rule: C's both-covered@k within 2 points of, or above, the best decoder family's (after re-ranker
     (a)) at every k. Evaluated per condition; KILL when it holds in every condition."""
     c = fams.get("s2_contrastive")
-    decoders = {f: v for f, v in fams.items() if v["stats"].get("decoder_present")}
+    decoders = {f: v for f, v in fams.items() if v["stats"].get("decoder_present") and f != CONTROL}
+    control = fams.get(CONTROL)
     if c is None or not decoders:
         return {"verdict": "n/a (needs the contrastive family and a decoder family)"}
     per_cond, ceilings = {}, {}
@@ -287,12 +298,17 @@ def d2_kill_rule(fams: dict) -> dict:
                                  default=(None, None))
             rows[str(k)] = {"C": c_val, "best_decoder": best, "best_family": best_fam,
                             "C_within_or_above": None if best is None else c_val >= best - COVER_TOL}
+        if control is not None:  # reported beside the rule, never part of it
+            for k in D2_KS:
+                st = control["stats"].get(f"decoder/rerank_bc/{cond}/bc{k}")
+                rows[str(k)]["text_only_control"] = st["mean"] if st else None
         ok = [r["C_within_or_above"] for r in rows.values()]
         per_cond[cond] = {"by_k": rows, "holds_at_every_k": None if None in ok else all(ok)}
         ceilings[cond] = c["stats"][f"dual/{cond}/ceiling50"]["mean"]
     holds = [v["holds_at_every_k"] for v in per_cond.values()]
     verdict = "n/a" if None in holds else ("KILL" if all(holds) else "NOT KILLED")
     return {"verdict": verdict, "C_ceiling50": ceilings, "per_condition": per_cond,
+            "excluded_from_best_decoder": CONTROL,
             "caveat": "The both-covered@50 ceiling is about 1 to 5 percent, so the rule is floor-bound: all values sit "
                       "near zero and a 2-point margin is easily met."}
 
@@ -331,10 +347,13 @@ def d1_markdown(d1: dict) -> list[str]:
             k = e["kill_rule_a"][kind]
             diffs = "; ".join(f"{a}: {fmt(v['mean_diff'])} / {fmt(v['sd_diff'])}" for a, v in k["per_alpha"].items())
             tops = "; ".join(f"{a}: {fmt(v['top_third_mean_diff'])}" for a, v in k["per_alpha"].items())
-            L.append(f"| {e['label']} | {kind} | {k['verdict']} | {len(e['seeds'])} | {diffs} | {tops} |")
+            flag = " (mixed vintages, see below)" if e["mixed_vintage"] else ""
+            L.append(f"| {e['label']}{flag} | {kind} | {k['verdict']} | {len(e['seeds'])} | {diffs} | {tops} |")
     L += ["", "### Re-ranker (b) collapse and the fusion_none sanity check", "",
-          "(b) is collapsed for a checkpoint when its tuned beta is 0 (it then equals the dual order).", "",
-          "| family | checkpoints | collapsed (b) parallel | collapsed (b) ratio | max abs(dec - null) parallel | ratio |",
+          "(b) is collapsed for a checkpoint when its tuned beta is 0 (it then equals the dual order). The fusion_none "
+          "check (max abs(dec - null), over the checkpoints with scores) is a control-only check: it applies to the "
+          f"text-only control ({CONTROL}) and is n/a for every other family.", "",
+          "| family | checkpoints | collapsed (b) parallel | collapsed (b) ratio | control-only: max abs(dec - null) parallel | ratio |",
           "|---|---|---|---|---|---|"]
     for fam, e in d1["families"].items():
         s = e["sanity_max_abs_dec_minus_null"]
@@ -343,7 +362,11 @@ def d1_markdown(d1: dict) -> list[str]:
     L += ["", "### Per-family means over seeds (mAP@R, R-Precision in percent; mean +- seed SD)", ""]
     for fam, e in d1["families"].items():
         st = e["stats"]
-        L += [f"#### {e['label']} ({fam}, seeds {e['seeds']})", "",
+        L += [f"#### {e['label']} ({fam}, seeds {e['seeds']})", ""]
+        if e["mixed_vintage"]:
+            L += [f"NOTE: mixed vintages. This family's means combine checkpoints recomputed from scores.npz with "
+                  f"checkpoints that fell back to d1.json ({'; '.join(e['sources'])}).", ""]
+        L += [
               "| score | order | " + " | ".join(f"mAP@R {s}" for s in SCOPES) + " | R-Prec all |",
               "|---|---|" + "---|" * (len(SCOPES) + 1)]
         L.append("| both | dual | " + " | ".join(pm(st.get(f"dual/{s}/map")) for s in SCOPES)
@@ -365,11 +388,14 @@ def d2_markdown(d2: dict) -> list[str]:
     L = ["## D2: blend probe", ""]
     k = d2["kill_rule"]
     L += [f"### Kill rule: C's both-covered@k within {COVER_TOL:.0f} points of, or above, the best decoder's at every k", "",
+          f"The best decoder excludes the text-only control ({CONTROL}), which reads no image; its numbers are listed "
+          "beside the rule and do not enter it.", "",
           f"Verdict: {k['verdict']}", ""]
     if "per_condition" in k:
         L += [k["caveat"], "", "| condition | C ceiling@50 | holds at every k | C / best decoder at k=5, 10, 20 |", "|---|---|---|---|"]
         for cond, v in k["per_condition"].items():
-            cells = "; ".join(f"{kk}: {fmt(r['C'])} / {fmt(r['best_decoder'])} ({r['best_family']})"
+            cells = "; ".join(f"{kk}: {fmt(r['C'])} / {fmt(r['best_decoder'])} ({r['best_family']}); "
+                              f"text-only control {fmt(r.get('text_only_control'))}"
                               for kk, r in v["by_k"].items())
             L.append(f"| {cond} | {fmt(k['C_ceiling50'][cond])} | {v['holds_at_every_k']} | {cells} |")
         L.append("")
