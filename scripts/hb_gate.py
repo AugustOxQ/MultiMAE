@@ -2,7 +2,8 @@
 
   python scripts/hb_gate.py --encoded <folder> [<folder> ...] [--annotations-dir DIR] [--json OUT]
 
-Exit code 1 if any decoder run fails a check, else 0. Non-decoder runs are skipped.
+Exit codes: 0 all gated decoder runs pass; 1 a check failed; 2 no decoder run was gated; 3 a folder errored.
+Non-decoder runs are skipped.
 """
 import argparse
 import json
@@ -21,16 +22,23 @@ def main(argv=None) -> int:
     ap.add_argument("--json", default=None)
     args = ap.parse_args(argv)
 
-    results, failed = [], False
+    results, failed, errored, gated = [], False, False, 0
     for folder in args.encoded:
-        enc = analysis.load_encoded(folder)
-        meta = enc["meta"]
-        head = f"{meta['arm']} {meta['seed']}"
-        if not meta["decoder"]:
-            print(f"{head} skip (no decoder)")
-            results.append({"folder": str(folder), "arm": meta["arm"], "seed": meta["seed"], "skipped": True})
+        try:
+            enc = analysis.load_encoded(folder)
+            meta = enc["meta"]
+            head = f"{meta['arm']} {meta['seed']}"
+            if not meta["decoder"]:
+                print(f"{head} skip (no decoder)")
+                results.append({"folder": str(folder), "arm": meta["arm"], "seed": meta["seed"], "skipped": True})
+                continue
+            res = analysis.gate(enc, analysis.prior_from(enc, args.annotations_dir))
+        except Exception as e:  # a crash must not look like a gate failure
+            print(f"ERROR {folder}: {type(e).__name__}: {e}")
+            results.append({"folder": str(folder), "error": f"{type(e).__name__}: {e}"})
+            errored = True
             continue
-        res = analysis.gate(enc, analysis.prior_from(enc, args.annotations_dir))
+        gated += 1
         bad = [k for k, v in res["checks"].items() if not v]
         failed |= bool(bad)
         print(f"{head} {res['readout']} T={res['temperature']:.3f} val_nll={res['val_nll']:.4f} "
@@ -40,6 +48,12 @@ def main(argv=None) -> int:
         results.append({"folder": str(folder), "arm": meta["arm"], "seed": meta["seed"], **res})
     if args.json:
         Path(args.json).write_text(json.dumps(results, indent=2))
+    if gated == 0:
+        print("no decoder runs gated")
+    if errored:
+        return 3
+    if gated == 0:
+        return 2
     return 1 if failed else 0
 
 

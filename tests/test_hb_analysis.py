@@ -106,7 +106,7 @@ def test_gate_collapsed_fails(tmp_path):
     prior = make_folder(tmp_path / "a", kind="collapsed")
     out = analysis.gate(analysis.load_encoded(tmp_path / "a"), prior)
     assert not out["checks"]["not_collapsed_to_prior"] and not out["passed"]
-    assert np.isnan(out["entropy_spearman"]) or isinstance(out["entropy_spearman"], float)
+    assert out["jsd_to_prior"] <= 0.02
 
 
 def test_gate_temperature_out_of_range(tmp_path):
@@ -130,3 +130,41 @@ def test_gate_script(tmp_path):
     make_folder(tmp_path / "bad", kind="collapsed")
     r = run_gate(tmp_path / "good", tmp_path / "bad")
     assert r.returncode == 1 and "FAIL" in r.stdout and "not_collapsed_to_prior" in r.stdout
+
+
+def test_gate_script_no_decoder_runs_exits_2(tmp_path):
+    make_folder(tmp_path / "a", decoder=False)
+    r = run_gate(tmp_path / "a")
+    assert r.returncode == 2 and "no decoder runs gated" in r.stdout
+
+
+def test_gate_script_error_exits_3_and_continues(tmp_path):
+    make_folder(tmp_path / "good")
+    (tmp_path / "broken").mkdir()
+    r = run_gate(tmp_path / "broken", tmp_path / "good")
+    assert r.returncode == 3 and "ERROR" in r.stdout and "PASS" in r.stdout
+
+
+def test_readout_layout_pins_view_and_length(tmp_path):
+    folder = tmp_path / "a"
+    make_folder(folder)
+    enc = analysis.load_encoded(folder)
+    for pre, n in (("al28", N), ("val", P)):
+        paint = np.arange(n)[:, None, None]
+        view = np.arange(V)[None, :, None]
+        length = np.arange(L)[None, None, :]
+        z = np.zeros((n, V, L, 9), np.float32)
+        z[..., 0] = 100 * paint + 10 * view + length  # exact in float32
+        enc[f"{pre}_dec_views"] = z
+        enc[f"{pre}_dec_full"] = z[:, :1]
+    r = analysis.decoder_readouts(enc)
+    for k, nv in (("views16", V), ("views4", 4), ("views1", 1)):
+        for side, n in ((0, N), (1, P)):
+            got = r[k][side][..., 0]
+            assert got.shape == (n, nv * L)
+            for i in (0, 7, n - 1):
+                expect = [100 * i + 10 * v + l for v in range(nv) for l in range(L)]
+                np.testing.assert_array_equal(got[i], expect)
+    for side, n in ((0, N), (1, P)):
+        got = r["full"][side][..., 0]
+        np.testing.assert_array_equal(got[5], [100 * 5 + l for l in range(L)])
