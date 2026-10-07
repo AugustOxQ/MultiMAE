@@ -15,7 +15,7 @@ import torch
 from omegaconf import DictConfig
 from torch import nn
 
-from mmae.losses import contrastive_loss, mae_loss, mlm_loss
+from mmae.losses import contrastive_loss, mae_loss, mlm_emotion_loss, mlm_loss
 from mmae.models.backbones import build_backbone
 from mmae.models.decoders import QueryDecoder
 from mmae.models.fusion import append_memory_token, build_fusion
@@ -36,6 +36,7 @@ def tower_layer_id(name: str, num_layers: int) -> int:
     return num_layers + 1
 MODALITIES = {"image", "text"}
 MLM_IMAGE_SOURCES = ("masked", "clean", "clean_detached")
+NUM_EMOTIONS = 9  # ArtELingo's emotion classes (mmae.data.artelingo.EMOTIONS)
 
 
 class MultiMAE(nn.Module):
@@ -75,6 +76,9 @@ class MultiMAE(nn.Module):
         self.text_mode = str(cfg.masking.get("text_mode", "random"))
         if self.text_mode not in ("random", "content"):
             raise ValueError(f"masking.text_mode must be 'random' or 'content', got {self.text_mode!r}")
+        self.emotion_head = bool(cfg.get("emotion_head", False))
+        if self.emotion_head and not (self.reconstruction and self.use_text):
+            raise ValueError("emotion_head needs the text decoder (reconstruction with the text modality)")
 
         towers = build_backbone(cfg.backbone.type, cfg.backbone.pretrained, cfg.pooling)
         dim, dec = int(cfg.fusion.dim), cfg.decoder
@@ -96,7 +100,8 @@ class MultiMAE(nn.Module):
             if self.reconstruction:
                 self.text_proj = nn.Linear(self.text.hidden_size, dim)
                 self.text_decoder = QueryDecoder(
-                    max_text_len, dim, self.text.vocab_size, depth=dec.depth, heads=dec.heads, dropout=dec.dropout
+                    max_text_len, dim, self.text.vocab_size, depth=dec.depth, heads=dec.heads, dropout=dec.dropout,
+                    prefix_queries=1 if self.emotion_head else 0, prefix_out_dim=NUM_EMOTIONS,
                 )
         if self.reconstruction:
             self.fusion = build_fusion(cfg.fusion)
@@ -190,12 +195,22 @@ class MultiMAE(nn.Module):
         if self.use_image:
             pred = self.image_decoder(image_memory, image_padding)
             losses["mae"] = mae_loss(pred, images, patch_mask, self.vision.patch_size, norm_pix=self.norm_pix)
+        logged: dict[str, torch.Tensor] = {}
         if self.use_text:
-            logits = self.text_decoder(text_memory, text_memory_padding, query_padding=text_padding)
-            losses["mlm"] = mlm_loss(logits, input_ids, token_mask)
+            decoded = self.text_decoder(text_memory, text_memory_padding, query_padding=text_padding)
+            if self.emotion_head:
+                if "emotion" not in batch:
+                    raise KeyError("model.emotion_head=true needs batch['emotion'] (ArtELingo data)")
+                logits, emotion_logits = decoded
+                losses["mlm"], logged = mlm_emotion_loss(
+                    logits, input_ids, token_mask, emotion_logits[:, 0], batch["emotion"]
+                )
+            else:
+                losses["mlm"] = mlm_loss(decoded, input_ids, token_mask)
 
         out = {f"loss_{name}": value for name, value in losses.items()}
         out["loss"] = sum(self.loss_weights[name] * value for name, value in losses.items())
+        out.update(logged)  # logged only; not part of the total
         return out
 
     def param_groups(

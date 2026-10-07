@@ -121,9 +121,18 @@ def recorder(model: MultiMAE, monkeypatch):
 
         monkeypatch.setattr(model_module, attr, wrapped)
     captured = {}
+    def capture(key):
+        def hook(module, inputs, output):
+            if isinstance(output, tuple):
+                captured[key] = output[0].detach().clone()
+                captured[key + "_prefix"] = output[1].detach().clone()
+            else:
+                captured[key] = output.detach().clone()
+        return hook
+
     for dec in ("image_decoder", "text_decoder"):
         if hasattr(model, dec):
-            getattr(model, dec).register_forward_hook(lambda m, i, o, _k=dec: captured.__setitem__(_k, o.detach().clone()))
+            getattr(model, dec).register_forward_hook(capture(dec))
     model.fusion.register_forward_hook(lambda m, i, o: captured.__setitem__("fusion", o))
 
     def run(batch):

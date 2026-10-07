@@ -3,7 +3,7 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from helpers import add_content_mask, compose_cfg, make_batch
+from helpers import add_content_mask, add_emotion, compose_cfg, make_batch
 from mmae.models import MultiMAE
 from mmae.models.backbones import TINY_CLIP
 from test_model import recorder, tiny_model
@@ -15,16 +15,18 @@ VARIANTS = {
     "m2b_content": ("model.masking.text_mode=content",),
     "m3_pooled": ("model.pooled_conditioning=true",),
     "m6_masked_view": ("model.loss.weights.masked_view=0.25",),
-    "parcap": ("model.masking.text_ratio=1.0", "model.mlm_image_source=clean", "model.loss.weights.mae=0"),
+    "emotion_head": ("model.emotion_head=true",),
+    "emotion_ml80": ("model.emotion_head=true", "model.masking.text_ratio=0.8", "model.loss.weights.mae=0"),
+    "parcap": ("model.emotion_head=true", "model.masking.text_ratio=1.0", "model.mlm_image_source=clean", "model.loss.weights.mae=0"),
 }
 
 NO_VISIBLE_TEXT = {"parcap"}
+EMOTION_VARIANTS = {"emotion_head", "emotion_ml80", "parcap"}
 
 
 def variant_batch(tokenizer, variant: str) -> dict:
-    if variant == "m2b_content":
-        return add_content_mask(make_batch(tokenizer), tokenizer)
-    return make_batch(tokenizer)
+    batch = add_content_mask(make_batch(tokenizer), tokenizer) if variant == "m2b_content" else make_batch(tokenizer)
+    return add_emotion(batch) if variant in EMOTION_VARIANTS else batch
 
 
 def change(batch: dict, model: MultiMAE, masks: dict, modality: str, masked_part: bool) -> dict:
@@ -189,7 +191,7 @@ def test_parcap_text_decoder_sees_no_caption_content(tokenizer, monkeypatch):
     """At text ratio 1.0 the caption decoder's output depends on the image and the caption length only."""
     model = tiny_model("fusion_multilearner", *VARIANTS["parcap"]).eval()
     masks, run = recorder(model, monkeypatch)
-    batch = make_batch(tokenizer)
+    batch = add_emotion(make_batch(tokenizer))
     base = run(batch)[0]["text_decoder"]
     real = batch["attention_mask"].bool() & ~batch["special_tokens_mask"].bool()
     assert torch.equal(masks["token"], real)

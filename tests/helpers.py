@@ -151,3 +151,9 @@ def run_train(cwd: Path, fake_coco, *overrides: str, nproc: int = 1, script: str
         cmd = [sys.executable, "-m", "torch.distributed.run", "--nproc_per_node", str(nproc),
                "--master_port", str(free_port()), str(REPO / script), *args]
     return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=1200)
+
+
+def add_emotion(batch: dict) -> dict:
+    """An ArtELingo-style emotion label per caption (class index in 0..8)."""
+    b = batch["input_ids"].shape[0]
+    return {**batch, "emotion": torch.arange(b) % 9}
