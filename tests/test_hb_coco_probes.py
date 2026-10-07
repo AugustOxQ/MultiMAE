@@ -44,3 +44,181 @@ def test_per_query_ap_reproduces_the_package():
     image_ids, caption_ids = map_coco_ids(retrieval_items(ann, "test"), ann / CAPTIONS_FILE)
     reported = coco_test_metrics(image, cap, image_ids, caption_ids, Metrics())["eccv/i2t_map_at_r"]
     assert abs(ours - reported) < 0.02, (ours, reported)
+
+
+# ---- D1: decoder caption scores, tuning, script ----
+from helpers import make_batch  # noqa: E402
+from test_model import tiny_model  # noqa: E402
+
+
+def _tok(batch):
+    return {k: batch[k] for k in ("input_ids", "attention_mask")}
+
+
+@pytest.mark.parametrize("kind", ["parallel", "ratio"])
+@pytest.mark.parametrize("name", ["fusion_multilearner", "fusion_none"])
+def test_caption_scores_are_finite_per_pair(name, kind, tokenizer):
+    model = tiny_model(name).eval()
+    batch = make_batch(tokenizer)
+    out = cp.caption_scores(model, batch["pixel_values"], _tok(batch), kind, 3, 0)
+    assert out.shape == (4,) and torch.isfinite(out).all() and (out <= 0).all()
+
+
+def test_parallel_score_of_fusion_none_ignores_the_image(tokenizer):
+    model = tiny_model("fusion_none").eval()
+    batch = make_batch(tokenizer, batch_size=2, captions=["a dog on the beach"] * 2)
+    other = torch.randn_like(batch["pixel_values"][:1])
+    images = torch.cat([batch["pixel_values"][:1], other])
+    s = cp.caption_scores(model, images, _tok(batch), "parallel", 8, 0)
+    torch.testing.assert_close(s[0], s[1], rtol=0, atol=1e-5)
+    # and a masked-source model does read the image
+    ml = tiny_model("fusion_multilearner").eval()
+    s2 = cp.caption_scores(ml, images, _tok(batch), "parallel", 2, 0)
+    assert abs(s2[0] - s2[1]) > 1e-6
+
+
+def test_ratio_score_depends_on_the_seed_and_parallel_scores_every_token(tokenizer):
+    model = tiny_model("fusion_multilearner").eval()
+    batch = make_batch(tokenizer)
+    a = cp.caption_scores(model, batch["pixel_values"], _tok(batch), "ratio", 2, 0)
+    b = cp.caption_scores(model, batch["pixel_values"], _tok(batch), "ratio", 2, 100)
+    assert not torch.allclose(a, b)
+    again = cp.caption_scores(model, batch["pixel_values"], _tok(batch), "ratio", 2, 0)
+    torch.testing.assert_close(a, again)
+
+
+def test_parallel_score_is_the_mean_log_prob_of_real_tokens(tokenizer):
+    model = tiny_model("fusion_none").eval()
+    batch = make_batch(tokenizer, batch_size=2, captions=["a dog on the beach", "two men on big horses"])
+    ids, am = batch["input_ids"], batch["attention_mask"]
+    n = am.sum(1)
+    real = am.bool().clone()
+    real[:, 0] = False
+    real[torch.arange(2), n - 1] = False
+    with torch.no_grad():
+        logits, _ = model.decode_text(batch["pixel_values"], ids, am, real)
+    lp = torch.log_softmax(logits.float(), -1).gather(-1, ids.unsqueeze(-1)).squeeze(-1)
+    expected = (lp * real).sum(1) / real.sum(1)
+    out = cp.caption_scores(model, batch["pixel_values"], _tok(batch), "parallel", 1, 0)
+    torch.testing.assert_close(out, expected, rtol=0, atol=1e-5)
+
+
+def test_null_images_are_zeros():
+    z = cp.null_images(3)
+    assert z.shape == (3, 3, 224, 224) and z.abs().sum() == 0
+
+
+def test_tune_prefers_no_correction_when_the_decoder_is_noise_and_dual_is_perfect():
+    rng = np.random.default_rng(0)
+    Q, k = 60, 50
+    order = np.tile(np.arange(k), (Q, 1))
+    positives = [np.arange(5) for _ in range(Q)]
+    dual = np.zeros((Q, k))
+    dual[:, :5] = 10.0
+    dual += rng.normal(scale=0.01, size=(Q, k))
+    out = cp.tune(dual, rng.normal(size=(Q, k)), rng.normal(size=(Q, k)), order, positives, 5)
+    assert out["alpha_b"] == 0 and out["beta"] == 0
+
+
+def test_tune_finds_the_prior_when_the_decoder_score_is_prior_plus_signal():
+    rng = np.random.default_rng(1)
+    Q, k = 80, 50
+    order = np.tile(np.arange(k), (Q, 1))
+    positives = [np.arange(5) for _ in range(Q)]
+    prior = rng.normal(scale=3.0, size=(Q, k))
+    signal = np.zeros((Q, k))
+    signal[:, :5] = 2.0
+    out = cp.tune(rng.normal(size=(Q, k)), signal + prior, prior, order, positives, 5)
+    assert out["alpha_a"] == 1.0
+
+
+def test_r_precision_and_thirds():
+    order = np.array([[3, 1, 2, 0], [0, 1, 2, 3]])
+    positives = [np.array([3, 2]), np.array([2, 3])]
+    np.testing.assert_allclose(cp.r_precision(order, positives, np.array([2, 2])), [0.5, 0.0])
+    groups = cp.r_thirds(np.array([10, 15, 16, 20, 21, 30]))
+    assert [g.tolist() for g in groups.values()] == [[0, 1], [2, 3], [4, 5]]
+
+
+def test_evaluate_orders_reranks_only_the_top_k():
+    # 1 query, 6 captions, positives {0, 1}; dual order puts them at ranks 2 and 3 within top k=4
+    order = np.array([[5, 4, 0, 1, 3, 2]])
+    q = cp.EccvI2T(query_image=np.array([0]), positives=[np.array([0, 1])], R=np.array([2]))
+    base = cp.d1_metrics(order, q)
+    better = cp.d1_metrics(cp.rerank(order, np.array([[0.0, 0.0, 2.0, 1.0]])), q)
+    assert better["map_at_r"] > base["map_at_r"] and better["r_precision"] == 100.0
+    assert set(base["by_third"]) == {"R<=15", "R16-20", "R>=21"}
+
+
+def _load_script():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("hb_coco_d1", Path(__file__).resolve().parents[1] / "scripts/hb_coco_d1.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _make_run(tmp_path, fake_coco, name):
+    from omegaconf import OmegaConf
+
+    from helpers import compose_cfg
+    from test_model import TINY_CLIP
+
+    images_dir, annotations_dir = fake_coco
+    cfg = compose_cfg(f"model={name}", f"model.backbone.pretrained={TINY_CLIP}", f"data.images_dir={images_dir}",
+                      f"data.annotations_dir={annotations_dir}")
+    # tiny random CLIP: the processor is B/32's (processor_name), config as the training run wrote it
+    run = tmp_path / f"run_{name}"
+    (run / "checkpoints").mkdir(parents=True)
+    OmegaConf.save(cfg, run / "config.yaml")
+    torch.manual_seed(0)
+    from mmae.models import MultiMAE
+
+    model = MultiMAE(cfg.model, max_text_len=cfg.data.max_text_len)
+    torch.save({"model": model.state_dict()}, run / "checkpoints" / "best.pt")
+    return run
+
+
+def _args(**kw):
+    import argparse
+
+    base = dict(images_dir=None, annotations_dir=None, k=50, samples=2, val_images=6, batch_size=60, workers=0,
+                limit_queries=None, device="cpu")
+    return argparse.Namespace(**{**base, **kw})
+
+
+def test_d1_script_end_to_end_on_the_fake_coco(tmp_path, fake_coco, monkeypatch):
+    script = _load_script()
+    run = _make_run(tmp_path, fake_coco, "fusion_multilearner")
+    q = cp.EccvI2T(query_image=np.arange(4), positives=[np.arange(5 * i, 5 * i + 5) for i in range(4)],
+                   R=np.full(4, 5))
+    monkeypatch.setattr(cp, "eccv_i2t", lambda ann: q)
+    result = script.run_one(run, _args(), torch.device("cpu"))
+    assert result["meta"]["queries"] == 4 and result["meta"]["k"] == 50
+    for kind in ("parallel", "ratio"):
+        for key in ("rerank_a", "rerank_b", "raw_decoder"):
+            assert 0 <= result[kind][key]["map_at_r"] <= 100
+        assert result[kind]["tuned"]["alpha_a"] in cp.ALPHAS
+    assert 0 <= result["dual"]["map_at_r"] <= 100
+    # alpha = 0, beta = 0 reproduces the dual order exactly
+    pass_through = cp.score_b(np.arange(30.0)[None, ::-1], np.random.rand(1, 30), np.random.rand(1, 30), 0.0, 0.0)
+    assert np.argsort(-pass_through[0]).tolist() == list(range(30))
+    one = script.run_one(run, _args(limit_queries=2), torch.device("cpu"))
+    assert one["meta"]["queries"] == 2 and one["meta"]["queries_total"] == 4 and one["dual"]["n"] == 2
+
+
+def test_d1_script_skips_checkpoints_without_a_decoder(tmp_path, fake_coco):
+    script = _load_script()
+    run = _make_run(tmp_path, fake_coco, "contrastive")
+    assert script.run_one(run, _args(), torch.device("cpu")) is None
+
+
+def test_null_scores_are_computed_once_per_candidate_caption(tokenizer):
+    script = _load_script()
+    model = tiny_model("fusion_multilearner").eval()
+    batch = make_batch(tokenizer, batch_size=4)
+    tok = _tok(batch)
+    cand = np.array([[0, 1], [1, 2], [3, 0]])
+    out = script.score_null(model, cand, tok, ("parallel",), 2, 100, torch.device("cpu"))["parallel"]
+    assert out.shape == (3, 2) and out[0, 1] == out[1, 0] and out[0, 0] == out[2, 1]

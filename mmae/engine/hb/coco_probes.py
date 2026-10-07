@@ -11,6 +11,8 @@ from eccv_caption import Metrics
 
 from mmae.data.coco import retrieval_items
 from mmae.engine.eccv import CAPTIONS_FILE, check_ids, map_coco_ids
+from mmae.models.fusion import NoFusion
+from mmae.models.masking import random_patch_mask, random_token_mask
 
 
 @dataclass
@@ -61,3 +63,110 @@ def rerank(order: np.ndarray, top_scores: np.ndarray) -> np.ndarray:
     out = order.copy()
     out[:, :k] = np.take_along_axis(order[:, :k], within, axis=1)
     return out
+
+
+# ---- D1: decoder caption scores and PMI re-ranking (spec section 10) ----
+ALPHAS = (0.0, 0.25, 0.5, 0.75, 1.0)
+BETAS = (0.0, 0.1, 0.25, 0.5, 1.0, 2.0)
+VIEW_RATIO = 0.75  # 25% of the patches stay visible (13 of 49)
+THIRDS = {"R<=15": (0, 15), "R16-20": (16, 20), "R>=21": (21, 10**9)}  # cuts of stratified_eccv.py
+
+
+def null_images(n: int) -> torch.Tensor:
+    """The null image: all zeros after CLIP normalisation (the dataset mean colour)."""
+    return torch.zeros(n, 3, 224, 224)
+
+
+def _real_tokens(attention_mask: torch.Tensor) -> torch.Tensor:
+    """Real, non-special positions: CLIP captions are BOS ... EOS then padding."""
+    n = attention_mask.sum(1)
+    real = attention_mask.bool().clone()
+    real[:, 0] = False
+    real[torch.arange(len(n), device=real.device), n - 1] = False
+    return real
+
+
+@torch.no_grad()
+def caption_scores(model, images: torch.Tensor, captions_tok: dict, kind: str, n_samples: int, seed: int) -> torch.Tensor:
+    """Per pair, the mean over samples of the mean log p of the hidden tokens, (B,).
+
+    parallel: every real token hidden; masked-source models average n_samples 25% views (seeds seed + s), clean-source
+    and fusion_none models use the full image and one sample. ratio: n_samples random token masks at the model's own
+    text ratio (seeds seed + s), each with its own 25% view for masked-source models, the full image otherwise."""
+    if kind not in ("parallel", "ratio"):
+        raise ValueError(f"kind must be parallel or ratio, got {kind!r}")
+    device = images.device
+    ids = captions_tok["input_ids"].to(device)
+    attention = captions_tok["attention_mask"].to(device)
+    real = _real_tokens(attention)
+    special = attention.bool() & ~real
+    viewed = model.mlm_image_source == "masked" and not isinstance(model.fusion, NoFusion)
+    n = n_samples if (kind == "ratio" or viewed) else 1
+    total = torch.zeros(len(ids), device=device)
+    for s in range(n):
+        ids_keep = None
+        if viewed:
+            ids_keep, _ = random_patch_mask(len(ids), model.vision.num_patches, VIEW_RATIO, device=device,
+                                            generator=torch.Generator().manual_seed(seed + s))
+        if kind == "parallel":
+            hidden = real
+        else:
+            hidden = random_token_mask(attention, special, model.text_ratio,
+                                       generator=torch.Generator().manual_seed(seed + s)).to(device)
+        logits, _ = model.decode_text(images, ids, attention, hidden, ids_keep=ids_keep)
+        logp = torch.log_softmax(logits.float(), dim=-1).gather(-1, ids.unsqueeze(-1)).squeeze(-1)
+        total += (logp * hidden).sum(1) / hidden.sum(1).clamp(min=1)
+    return total / n
+
+
+def _z(x: np.ndarray) -> np.ndarray:
+    std = x.std(axis=1, keepdims=True)
+    return (x - x.mean(axis=1, keepdims=True)) / np.where(std > 0, std, 1.0)
+
+
+def _order_by(order: np.ndarray, scores: np.ndarray) -> np.ndarray:
+    return np.take_along_axis(order, np.argsort(-scores, axis=1, kind="stable"), axis=1)
+
+
+def score_a(dec: np.ndarray, null: np.ndarray, alpha: float) -> np.ndarray:
+    return dec - alpha * null
+
+
+def score_b(dual: np.ndarray, dec: np.ndarray, null: np.ndarray, alpha: float, beta: float) -> np.ndarray:
+    return _z(dual) + beta * _z(dec - alpha * null)
+
+
+def tune(dual, dec, null, order, positives, R) -> dict:
+    """alpha (re-ranker a), and alpha and beta (re-ranker b) maximising mean AP@R over (Q, k) candidates in dual order.
+    Ties keep the first grid point, so no correction (alpha 0, beta 0) wins a tie."""
+    dual, dec, null, order = (np.asarray(x) for x in (dual, dec, null, order))
+    R = np.full(len(order), R) if np.ndim(R) == 0 else np.asarray(R)
+    best_a, best_b = (-1.0, 0.0), (-1.0, 0.0, 0.0)
+    for alpha in ALPHAS:
+        ap = ap_at_r(_order_by(order, score_a(dec, null, alpha)), positives, R).mean()
+        if ap > best_a[0]:
+            best_a = (ap, alpha)
+        for beta in BETAS:
+            ap = ap_at_r(_order_by(order, score_b(dual, dec, null, alpha, beta)), positives, R).mean()
+            if ap > best_b[0]:
+                best_b = (ap, alpha, beta)
+    return {"alpha_a": best_a[1], "alpha_b": best_b[1], "beta": best_b[2],
+            "val_map_a": float(best_a[0]), "val_map_b": float(best_b[0])}
+
+
+def r_precision(order: np.ndarray, positives: list[np.ndarray], R: np.ndarray) -> np.ndarray:
+    return np.array([np.isin(order[i, :r], positives[i]).sum() / r for i, r in enumerate(R)])
+
+
+def r_thirds(R: np.ndarray) -> dict[str, np.ndarray]:
+    return {name: np.where((R >= lo) & (R <= hi))[0] for name, (lo, hi) in THIRDS.items()}
+
+
+def d1_metrics(order: np.ndarray, q: EccvI2T) -> dict:
+    """ECCV mAP@R and R-Precision (percent) of a full per-query caption order, overall and by thirds of R."""
+    ap = 100 * ap_at_r(order, q.positives, q.R)
+    rp = 100 * r_precision(order, q.positives, q.R)
+    by = {name: {"n": int(len(ix)), "map_at_r": float(ap[ix].mean()) if len(ix) else None,
+                 "r_precision": float(rp[ix].mean()) if len(ix) else None}
+          for name, ix in r_thirds(q.R).items()}
+    return {"n": int(len(ap)), "map_at_r": float(ap.mean()), "r_precision": float(rp.mean()), "by_third": by}
