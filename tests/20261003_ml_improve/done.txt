@@ -1,0 +1,68 @@
+20261003-162213-eb85340 node403 eb85340 contrastive_meanpool 42 1 succeeded model=contrastive model.pooling=mean
+20261003-204221-9919d8d node403 9919d8d diag_stage0 0 1 succeeded +diag.runs_root=/local/wding/res/MultiMAE/coco/multimae/default +diag.out=/local/wding/res/MultiMAE/coco/diagnostics/stage0 eval.vwsd_dir=/local/wding/Dataset/vwsd
+20261003-170954-9203048 node405 9203048 contrastive_meanpool 43 1 succeeded model=contrastive model.pooling=mean
+20261003-162314-eb85340 node403 eb85340 contrastive_ep15 42 1 succeeded model=contrastive train.epochs=15
+20261003-162109-eb85340 node403 eb85340 multilearner_txt40 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.4
+20261003-170850-9203048 node405 9203048 multilearner_txt40 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.4
+20261003-171958-0ca9b05 node405 0ca9b05 multilearner_mae0 42 1 succeeded model=fusion_multilearner model.loss.weights.mae=0
+20261003-225146-1b23184 node403 1b23184 contrastive_r2lr 42 1 succeeded model=contrastive train.lr_text=5e-5 train.lr_vision=5e-6 train.layer_decay=0.7 train.freeze_vision_epochs=2
+20261003-210023-a0f946f node403 a0f946f multilearner_m1clean 42 1 succeeded model=fusion_multilearner model.mlm_image_source=clean
+20261003-212434-a0f946f node405 a0f946f multilearner_m2bcontent 42 1 succeeded model=fusion_multilearner model.masking.text_mode=content
+20261003-233849-a0f946f node403 a0f946f multilearner_m1detached 42 1 succeeded model=fusion_multilearner model.mlm_image_source=clean_detached
+20261004-002614-7a12d9f node405 7a12d9f multilearner_m3pooled 42 1 succeeded model=fusion_multilearner model.pooled_conditioning=true
+20261004-003510-a0f946f node405 a0f946f multilearner_txt60 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.6
+20261004-031057-a0f946f node403 a0f946f multilearner_txt25 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.25
+20261004-043852-a0f946f node403 a0f946f multilearner_mae0 43 1 succeeded model=fusion_multilearner model.loss.weights.mae=0
+20261004-043954-a0f946f node405 a0f946f multilearner_mae0_txt40 42 1 succeeded model=fusion_multilearner model.loss.weights.mae=0 model.masking.text_ratio=0.4
+20261004-071453-7a12d9f node403 7a12d9f multilearner_m6maskedview 42 1 succeeded model=fusion_multilearner model.loss.weights.masked_view=0.25
+20261004-074507-a0f946f node405 a0f946f multilearner_txt60 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.6
+20261004-075148-a0f946f node405 a0f946f multilearner_txt25 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.25
+20261004-115625-1b23184 node405 1b23184 contrastive_r2lr 43 1 succeeded model=contrastive train.lr_text=5e-5 train.lr_vision=5e-6 train.layer_decay=0.7 train.freeze_vision_epochs=2
+20261004-102651-a0f946f node403 a0f946f multilearner_mae0_txt40 43 1 succeeded model=fusion_multilearner model.loss.weights.mae=0 model.masking.text_ratio=0.4
+20261004-115523-a0f946f node403 a0f946f multilearner_txt80 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8
+20261004-142631-a0f946f node403 a0f946f multilearner_m1clean 43 1 succeeded model=fusion_multilearner model.mlm_image_source=clean
+20261004-150226-a0f946f node405 a0f946f multilearner_m2bcontent 43 1 succeeded model=fusion_multilearner model.masking.text_mode=content
+20261004-150912-a0f946f node405 a0f946f multilearner_m1detached 43 1 succeeded model=fusion_multilearner model.mlm_image_source=clean_detached
+20261004-161338-7a12d9f node405 7a12d9f multilearner_m3pooled 43 1 succeeded model=fusion_multilearner model.pooled_conditioning=true
+20261004-174650-7a12d9f node403 7a12d9f multilearner_m6maskedview 43 1 failed model=fusion_multilearner model.loss.weights.masked_view=0.25
+20261004-191428-a0f946f node403 a0f946f multilearner_txt80 43 1 failed model=fusion_multilearner model.masking.text_ratio=0.8
+20261004-220138-a0f946f node403 a0f946f multilearner_txt90 42 1 failed model=fusion_multilearner model.masking.text_ratio=0.9
+20261004-221458-a0f946f node405 a0f946f multilearner_txt90 43 1 failed model=fusion_multilearner model.masking.text_ratio=0.9
+20261004-225034-a0f946f node405 a0f946f multilearner_txt80 44 1 failed model=fusion_multilearner model.masking.text_ratio=0.8
+20261005-000112-9919d8d node411 9919d8d s2_contrastive 42 1 succeeded model=contrastive train.seeded_sampler=true
+20261004-233310-a0f946f node405 a0f946f multilearner_txt80 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8
+20261004-233417-a0f946f node405 a0f946f multilearner_txt90 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.9
+20261004-233512-a0f946f node405 a0f946f multilearner_txt90 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.9
+20261004-235912-a0f946f node411 a0f946f multilearner_txt80 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8
+20261005-000016-7a12d9f node411 7a12d9f multilearner_m6maskedview 43 1 succeeded model=fusion_multilearner model.loss.weights.masked_view=0.25
+20261005-064744-9919d8d node405 9919d8d s2_contrastive 43 1 succeeded model=contrastive train.seeded_sampler=true
+20261005-065533-9919d8d node405 9919d8d s2_contrastive 44 1 succeeded model=contrastive train.seeded_sampler=true
+20261005-041840-9919d8d node411 9919d8d s2_multilearner 42 1 succeeded model=fusion_multilearner train.seeded_sampler=true
+20261005-065438-9919d8d node405 9919d8d s2_multilearner 43 1 succeeded model=fusion_multilearner train.seeded_sampler=true
+20261005-071453-9919d8d node411 9919d8d s2_multilearner 44 1 succeeded model=fusion_multilearner train.seeded_sampler=true
+20261005-071548-9919d8d node411 9919d8d s2_txt80 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 train.seeded_sampler=true
+20261005-110201-9919d8d node405 9919d8d s2_txt80 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 train.seeded_sampler=true
+20261005-111613-9919d8d node405 9919d8d s2_txt80 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 train.seeded_sampler=true
+20261005-113502-9919d8d node411 9919d8d s2_mae0 42 1 succeeded model=fusion_multilearner model.loss.weights.mae=0 train.seeded_sampler=true
+20261005-141018-9919d8d node405 9919d8d s2_mae0 43 1 succeeded model=fusion_multilearner model.loss.weights.mae=0 train.seeded_sampler=true
+20261005-142337-9919d8d node411 9919d8d s2_mae0 44 1 succeeded model=fusion_multilearner model.loss.weights.mae=0 train.seeded_sampler=true
+20261005-143044-9919d8d node411 9919d8d s2_txt80 45 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 train.seeded_sampler=true
+20261005-182005-9919d8d node405 9919d8d s2_txt80 46 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 train.seeded_sampler=true
+20261005-225630-9919d8d node411 9919d8d s2_none_txt80 42 1 succeeded model=fusion_none model.masking.text_ratio=0.8 train.seeded_sampler=true
+20261005-225425-9919d8d node405 9919d8d s2_m1detached_txt80 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.mlm_image_source=clean_detached train.seeded_sampler=true
+20261005-225521-9919d8d node405 9919d8d s2_m1clean_txt80 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.mlm_image_source=clean train.seeded_sampler=true
+20261005-225734-9919d8d node411 9919d8d s2_m1detached_txt80 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.mlm_image_source=clean_detached train.seeded_sampler=true
+20261005-225830-9919d8d node411 9919d8d s2_m1clean_txt80 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.mlm_image_source=clean train.seeded_sampler=true
+20261006-013333-9919d8d node405 9919d8d s2_none_txt80 43 1 succeeded model=fusion_none model.masking.text_ratio=0.8 train.seeded_sampler=true
+20261006-055116-9919d8d node411 9919d8d s2_m1detached_txt80 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.mlm_image_source=clean_detached train.seeded_sampler=true
+20261006-063359-9919d8d node405 9919d8d s2_none_txt80 44 1 succeeded model=fusion_none model.masking.text_ratio=0.8 train.seeded_sampler=true
+20261006-063304-9919d8d node405 9919d8d s2_m1clean_txt80 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.mlm_image_source=clean train.seeded_sampler=true
+20261006-173336-9919d8d node405 9919d8d s2_r2_txt80 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 train.lr_text=5e-5 train.lr_vision=5e-6 train.layer_decay=0.7 train.freeze_vision_epochs=2 train.seeded_sampler=true
+20261006-173441-9919d8d node405 9919d8d s2_r2_txt80 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 train.lr_text=5e-5 train.lr_vision=5e-6 train.layer_decay=0.7 train.freeze_vision_epochs=2 train.seeded_sampler=true
+20261006-173539-9919d8d node405 9919d8d s2_r2_txt80 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 train.lr_text=5e-5 train.lr_vision=5e-6 train.layer_decay=0.7 train.freeze_vision_epochs=2 train.seeded_sampler=true
+20261006-173649-9919d8d node411 9919d8d s2_txt80_mae0 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.loss.weights.mae=0 train.seeded_sampler=true
+20261006-173753-9919d8d node411 9919d8d s2_txt80_mae0 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.loss.weights.mae=0 train.seeded_sampler=true
+20261006-173849-9919d8d node411 9919d8d s2_txt80_mae0 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.loss.weights.mae=0 train.seeded_sampler=true
+20261007-005214-9919d8d node405 9919d8d s2_r2_contrastive 42 1 succeeded model=contrastive train.lr_text=5e-5 train.lr_vision=5e-6 train.layer_decay=0.7 train.freeze_vision_epochs=2 train.seeded_sampler=true
+20261007-005320-9919d8d node405 9919d8d s2_r2_contrastive 43 1 succeeded model=contrastive train.lr_text=5e-5 train.lr_vision=5e-6 train.layer_decay=0.7 train.freeze_vision_epochs=2 train.seeded_sampler=true
+20261007-005423-9919d8d node405 9919d8d s2_r2_contrastive 44 1 succeeded model=contrastive train.lr_text=5e-5 train.lr_vision=5e-6 train.layer_decay=0.7 train.freeze_vision_epochs=2 train.seeded_sampler=true
