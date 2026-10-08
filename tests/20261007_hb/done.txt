@@ -1,0 +1,12 @@
+20261007-162430-6f77ad4 node405 6f77ad4 hb_c 42 1 succeeded model=contrastive train.seeded_sampler=true
+20261007-162837-6f77ad4 node411 6f77ad4 hb_c 43 1 succeeded model=contrastive train.seeded_sampler=true
+20261007-162106-6f77ad4 node404 6f77ad4 hb_ml80 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.loss.weights.mae=0 model.emotion_head=true train.seeded_sampler=true
+20261007-162313-6f77ad4 node404 6f77ad4 hb_ml80mae 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.emotion_head=true train.seeded_sampler=true
+20261007-162533-6f77ad4 node405 6f77ad4 hb_ml80 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.loss.weights.mae=0 model.emotion_head=true train.seeded_sampler=true
+20261007-162734-6f77ad4 node411 6f77ad4 hb_ml80mae 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.emotion_head=true train.seeded_sampler=true
+20261007-162932-6f77ad4 node411 6f77ad4 hb_ml80 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.loss.weights.mae=0 model.emotion_head=true train.seeded_sampler=true
+20261007-162211-6f77ad4 node404 6f77ad4 hb_parcap 42 1 succeeded model=fusion_multilearner model.masking.text_ratio=1.0 model.mlm_image_source=clean model.loss.weights.mae=0 model.emotion_head=true train.seeded_sampler=true
+20261007-162626-6f77ad4 node405 6f77ad4 hb_parcap 43 1 succeeded model=fusion_multilearner model.masking.text_ratio=1.0 model.mlm_image_source=clean model.loss.weights.mae=0 model.emotion_head=true train.seeded_sampler=true
+20261007-175545-6f77ad4 node405 6f77ad4 hb_c 44 1 succeeded model=contrastive train.seeded_sampler=true
+20261007-195352-6f77ad4 node405 6f77ad4 hb_ml80mae 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=0.8 model.emotion_head=true train.seeded_sampler=true
+20261007-195238-6f77ad4 node404 6f77ad4 hb_parcap 44 1 succeeded model=fusion_multilearner model.masking.text_ratio=1.0 model.mlm_image_source=clean model.loss.weights.mae=0 model.emotion_head=true train.seeded_sampler=true
