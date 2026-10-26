@@ -2,6 +2,48 @@
 
 Date: 2026-10-08. Branch `hb-artelingo`. Every training run at commit `6f77ad4` (2026-10-07 18:18), every readout at `acc25ba`, final tables in the registry entry of 2026-10-08 02:00. Design and pre-registered rule: [the H-b first spec](../../../superpowers/specs/2026-10-07-hb-first-artelingo-design.md) (committed 2026-10-07 17:01, amended 18:10), with plans for [the training path](../../../superpowers/plans/2026-10-07-hb-1-training-path.md), [the readouts](../../../superpowers/plans/2026-10-07-hb-2-readouts.md) and [the COCO probes](../../../superpowers/plans/2026-10-07-hb-3-coco-probes.md). Background: [the H-b literature review](2026-10-06_masked_decoder_readings_review.md) and [Stages 1 and 2 of the masking line](2026-10-06_masking_stages_1_2.md). Registry of every decision and run: `tests/20261007_hb/runs.md`. Every number taken from the result files is printed by [`build_2026-10-08_hb_emotion_readout.py`](../../assets/build_2026-10-08_hb_emotion_readout.py), which also draws the figures; numbers quoted from the spec, the registry or earlier reports are cited to them.
 
+## Results brief
+
+*Added 2026-10-25 for step 1 of loop r1; the rest of the report is unchanged from 2026-10-08.*
+
+**What we tried.** We tested H-b for the first time: the masked model's caption decoder holds several readings of one image. A reading was one annotator's emotion (9 classes). The human side was the dense votes of ArtELingo-28: 1,600 paintings, median 104 votes each, none seen in training ([spec](../../../superpowers/specs/2026-10-07-hb-first-artelingo-design.md)). Four arms, 3 seeds each: contrastive CLIP; the masked model with 80% of caption tokens hidden (ML-80); ML-80 with the pixel decoder; a parallel captioner that reads the full image with every caption token hidden (Par-cap). Two more probes used existing COCO checkpoints.
+
+**Outcome against the bar.** The bar, fixed in advance: ML-80 beats both Par-cap and the best linear probe on one of two metrics (Holm p < 0.05). It did not. It was behind both on both metrics.
+
+| Metric | ML-80 | Par-cap | Best probe | Prior only | Human ceiling |
+|---|---|---|---|---|---|
+| Jensen-Shannon distance to the votes (lower is better) | 0.277 | 0.267 | 0.265 | 0.318 | 0.235 |
+| Entropy Spearman: does the model know where people disagree? | 0.41 | 0.51 | 0.56 | | 0.77 |
+
+- A bootstrap over paintings puts all four gaps against ML-80 (Holm p ≤ 0.0034). A test over the 3 seeds gives Holm p = 0.105. So ML-80 is not better; that it is worse is only suggested.
+- A linear probe on the frozen image embedding of any arm, contrastive CLIP included, reached 0.265. The emotion spread already sits in the pooled embedding.
+- Averaging several partial image views added no signal of its own (D6).
+- Visible caption tokens steered ML-80's emotion output (D7): log-loss 1.925 with none visible (prior only 2.041), 1.450 with 8 (prior only 2.050, on the 16,041 captions long enough). This test favours masking by its design.
+- On COCO image-to-text, reranking by the decoder score alone cut mAP@R by 15 to 19 points (D1, kill rule fired). Added to the dual score, it changed mAP@R by −0.01 to +0.14. The blend probe (D2) showed only a small effect of visible words.
+
+**What it does not show.**
+- The decoders were lightly trained. Early stopping on retrieval picked epoch 2 in 11 of 12 runs, while ML-80's emotion loss still fell.
+- ML-80's readout hides the whole caption, which ML-80 never met in training; Par-cap trained that way. The design does not separate this from ML-80's partial image view.
+- 3 seeds, one backbone (CLIP B/32), one recipe. About 5 English labels per painting in training, scored against votes in 27 other languages.
+- No autoregressive captioner yet, so the steering test (D7) has no fair comparator.
+- It tests one readout of H-b, the emotion spread per painting. Other readouts stay open.
+
+**Options for next.**
+- a. Rerun ML-80 and Par-cap with checkpoint selection on the emotion loss. Cost: a small code change and 6 runs of about 3 hours on a DAS6 node (a new reservation). It tests whether this selection narrows the gap.
+- b. The captioner comparisons: the 2×2 (partial or full image, 80% or 100% text masking; 6 runs), and an autoregressive captioner (about 120 lines of code, 3 runs) with a D7 rerun on a no-image control that the decoder does not penalise. They tell which factor costs ML-80, and whether steering is specific to masking.
+- c. Close the emotion-spread line. Go back to the COCO masking gain (H-a). There, D2's collapse finding (partial-view embeddings collapse in the models that lost the gain) is a cheap correlate to study from data on disk; it does not explain the gain yet. Or start a new idea with a literature check (a full loop).
+
+**Your reading.** *(to be recorded at step 1)*
+
+<details>
+<summary>Our reading and recommendation (open after writing yours)</summary>
+
+**Our reading.** On this readout D4 is a clear negative, and we are fairly sure of it: ML-80 is not better. The strongest finding is the probe: every arm's pooled image embedding already carries the emotion spread as far as any model here learned it, and no decoder adds to it. On the most ambiguous third of paintings, no model got much beyond the label frequencies. Two caveats could reorder ML-80 and Par-cap: light training and the fully hidden caption at readout. We doubt either closes the gap to the probe on entropy Spearman (0.41 against 0.56), but these runs cannot tell. The only effect specific to masking is that visible words steer the decoder (D7, D2). It is small and not yet tested against a fair captioner.
+
+**Our recommendation (our view).** Option a in a cheap form first: one seed of ML-80 and Par-cap with selection on the emotion loss (2 runs, about 6 GPU-hours), as a go or no-go. If ML-80 stays clearly behind the probe, close the emotion-spread line (option c). The collapse analysis of option c costs almost nothing and can run beside it. Option b only if option a shows that ML-80 catches up.
+
+</details>
+
 ## Summary
 
 H-b claims that a cross-modal masked model holds several readings of one image in its decoder's predictive distribution, which a contrastive dual encoder cannot. We tested it for the first time on ArtELingo, with the annotators' emotion label (9 classes) as the reading unit and the non-English ArtELingo-28 votes (1,600 paintings, median 104 votes each, none seen in training) as the human distribution. Four arms were trained on English ArtELingo with 3 seeds each: a contrastive model (C), the masked model at 80% text masking (ML-80), the same with the pixel decoder (ML-80+MAE) and a parallel captioner that reads the full image with every caption token hidden (Par-cap).
