@@ -1,9 +1,9 @@
 # Handoff: r1 decide 2 takes the user's own framing of the two ideas, then decision B, the grill and the spec
 
 ## Brief
-- Done: step 1 (results brief, user-read report, decision C), the wrap-up (direction log, glossary, docs layout, 34 GB freed, `hb-artelingo` merged into `main`, the two literature reviews moved to `docs/reports/literature/`), decision A (a full loop on a new idea) and step 3 (two deep literature checks, a note with three candidate ideas).
-- State: no idea chosen. The user finds the three candidates interesting but framed differently from their own two ideas.
-- Next: ask the user for their own framing of idea 1 (masking under a multimodal augmentation) and idea 2 (PVSE with masked sub-spaces), answer-first; then decision B, the grill (step 5) and the spec (step 6).
+- Done: step 1 (decision C), the wrap-up (34 GB freed, `hb-artelingo` merged into `main`, the reviews moved to `docs/reports/literature/`), decision A, step 3 (two literature checks, a note with three candidate ideas).
+- State: no idea chosen; the user finds the three candidates interesting but framed differently from their own two ideas.
+- Next: the user's own framing of idea 1 (masking under a multimodal augmentation) and idea 2 (PVSE with masked sub-spaces), then decision B, the grill and the spec.
 - Blocked: nothing; the chat needs the user.
 
 > Written 2026-10-26 04:02 by r1 decide (session d368c78b-eee4-4908-80cb-3265e80151f1). Loop step reached: after step 3, before step 4 (decision B). Direction log entry: [2026-10-26 · H-b's first readout not supported](../direction_log.md).
