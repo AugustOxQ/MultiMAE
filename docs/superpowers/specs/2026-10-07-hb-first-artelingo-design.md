@@ -1,7 +1,7 @@
 # H-b, first spec: the masked decoder's emotion distribution on ArtELingo, plus COCO decoder probes
 
 Date: 2026-10-07. Branch `hb-artelingo` (from `ml-improve-stages-1-2` at b31ea05). Background: the H-b literature
-review `docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md` (designs D1 to D11 in its section 6 and in
+review `docs/reports/literature/2026-10-06_masked_decoder_readings_review.md` (designs D1 to D11 in its section 6 and in
 `docs/reports/assets/2026-10-06_masked_decoder_readings_review/S_synthesis.md`), and the user-read summary
 `docs/user_read/2026-10-06_masking_and_polysemy.md`.
 

@@ -1,6 +1,6 @@
 # Stages 1 and 2 of the improve-multilearner line: 80% text masking, its confirmation, and where its gain comes from
 
-Date: 2026-10-06. Branch `main`. Stage 1 runs at commits `eb85340`, `9203048`, `0ca9b05`, `a0f946f`, `7a12d9f` and `1b23184`; every Stage 2 run at `9919d8d`; Stage 2 diagnostics as cluster job `20261006-141443-9919d8d`. Design and pre-registered rules: [the improve-multilearner spec](../../../superpowers/specs/2026-10-03-improve-multilearner-design.md), sections 3, 6 and 7. Previous reports: [the baselines](2026-10-03_baselines.md), [the lever review](2026-10-03_lever_review.md), [the Stage 0 diagnostics](2026-10-03_stage0_diagnostics.md) and the deep-think note [cross-masking and polysemy](2026-10-05_cross_masking_polysemy.md). Every number below is printed by [`build_2026-10-06_masking_stages_1_2.py`](../../assets/build_2026-10-06_masking_stages_1_2.py), which also draws the figures.
+Date: 2026-10-06. Branch `main`. Stage 1 runs at commits `eb85340`, `9203048`, `0ca9b05`, `a0f946f`, `7a12d9f` and `1b23184`; every Stage 2 run at `9919d8d`; Stage 2 diagnostics as cluster job `20261006-141443-9919d8d`. Design and pre-registered rules: [the improve-multilearner spec](../../../superpowers/specs/2026-10-03-improve-multilearner-design.md), sections 3, 6 and 7. Previous reports: [the baselines](2026-10-03_baselines.md), [the lever review](../../literature/2026-10-03_lever_review.md), [the Stage 0 diagnostics](2026-10-03_stage0_diagnostics.md) and the deep-think note [cross-masking and polysemy](2026-10-05_cross_masking_polysemy.md). Every number below is printed by [`build_2026-10-06_masking_stages_1_2.py`](../../assets/build_2026-10-06_masking_stages_1_2.py), which also draws the figures.
 
 ## Summary
 
@@ -168,9 +168,9 @@ MAE off scored 37.54 in Stage 1 (seeds 37.57 and 37.51) and 37.20 in Stage 2 (37
 
 ### 3.5 How large the gain is
 
-The five-seed gain over multilearner (+0.70) is 6.8% of the 10.22 mAP@R that contrastive fine-tuning added over zero-shot CLIP in the baselines report. The 80% arm (37.94) is still 1.06 below the 39.0 that PCME++ reports for an InfoNCE fine-tune of the same backbone with its own recipe ([lever review](2026-10-03_lever_review.md)), so the recipe gap that Stage 1's recipe screens targeted is still open.
+The five-seed gain over multilearner (+0.70) is 6.8% of the 10.22 mAP@R that contrastive fine-tuning added over zero-shot CLIP in the baselines report. The 80% arm (37.94) is still 1.06 below the 39.0 that PCME++ reports for an InfoNCE fine-tune of the same backbone with its own recipe ([lever review](../../literature/2026-10-03_lever_review.md)), so the recipe gap that Stage 1's recipe screens targeted is still open.
 
-*Sources: `res/coco/multimae/ml_improve/*_s2_{contrastive,multilearner,txt80,mae0}/run.json` (`created` and `ended` for run times); spec sections 3 and 7 (`git log` of the spec: `dba32b0`, 2026-10-03 18:26); `tests/20261003_ml_improve/runs.md` entries of 2026-10-05 16:30 and 20:33; zero-shot and PCME++ numbers from the [baselines](2026-10-03_baselines.md) and the [lever review](2026-10-03_lever_review.md); build script sections D, E and K. `tests/20261003_ml_improve/stage2_table.py` gives the same tests.*
+*Sources: `res/coco/multimae/ml_improve/*_s2_{contrastive,multilearner,txt80,mae0}/run.json` (`created` and `ended` for run times); spec sections 3 and 7 (`git log` of the spec: `dba32b0`, 2026-10-03 18:26); `tests/20261003_ml_improve/runs.md` entries of 2026-10-05 16:30 and 20:33; zero-shot and PCME++ numbers from the [baselines](2026-10-03_baselines.md) and the [lever review](../../literature/2026-10-03_lever_review.md); build script sections D, E and K. `tests/20261003_ml_improve/stage2_table.py` gives the same tests.*
 
 ## 4. Mechanism: what the 80% gain needs
 

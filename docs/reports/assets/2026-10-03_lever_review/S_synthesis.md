@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-03_lever_review.md. Phase 3 synthesis as written, built from B1 to B4 as corrected by V1 and V2; the report condenses it and drops its hidden reference markers.
+> Supporting file for docs/reports/literature/2026-10-03_lever_review.md. Phase 3 synthesis as written, built from B1 to B4 as corrected by V1 and V2; the report condenses it and drops its hidden reference markers.
 
 # S: Synthesis of masked objectives, one-to-many retrieval and polysemy (MultiMAE)
 

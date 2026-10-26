@@ -1,4 +1,4 @@
-"""Figures of docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md (integrative review of H-b).
+"""Figures of docs/reports/literature/2026-10-06_masked_decoder_readings_review.md (integrative review of H-b).
 
 Writes to docs/reports/assets/2026-10-06_masked_decoder_readings_review/:
   hb_chain.png     Figure 1: the H-b chain (masked inputs -> fused memory -> MLM decoder distribution -> compared

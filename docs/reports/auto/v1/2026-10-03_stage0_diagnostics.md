@@ -1,6 +1,6 @@
 # Stage 0 diagnostics: where the fusion models' PMRP gain sits, and what it says about object grounding and softer similarity
 
-Date: 2026-10-03. Branch `eval-baselines`, diagnostics at commit `9919d8d` (cluster job `20261003-204221-9919d8d`). Design: [the improve-multilearner spec](../../../superpowers/specs/2026-10-03-improve-multilearner-design.md), sections 4 and 5. Previous reports: [the baselines](2026-10-03_baselines.md) (same 12 checkpoints) and [the lever review](2026-10-03_lever_review.md). Every number below is printed by [`build_2026-10-03_stage0.py`](../../assets/build_2026-10-03_stage0.py), which also draws the figures.
+Date: 2026-10-03. Branch `eval-baselines`, diagnostics at commit `9919d8d` (cluster job `20261003-204221-9919d8d`). Design: [the improve-multilearner spec](../../../superpowers/specs/2026-10-03-improve-multilearner-design.md), sections 4 and 5. Previous reports: [the baselines](2026-10-03_baselines.md) (same 12 checkpoints) and [the lever review](../../literature/2026-10-03_lever_review.md). Every number below is printed by [`build_2026-10-03_stage0.py`](../../assets/build_2026-10-03_stage0.py), which also draws the figures.
 
 ## Summary
 
@@ -17,7 +17,7 @@ The common gain looks like a softening consistent with the masked text pass (H2 
 
 ## 1. What we asked
 
-Our [baselines](2026-10-03_baselines.md) showed a class-level change (PMRP up) without an instance-level one (mAP@R flat). The [lever review](2026-10-03_lever_review.md) proposed two mechanisms, and the spec turned them into predictions:
+Our [baselines](2026-10-03_baselines.md) showed a class-level change (PMRP up) without an instance-level one (mAP@R flat). The [lever review](../../literature/2026-10-03_lever_review.md) proposed two mechanisms, and the spec turned them into predictions:
 
 - H1 (object grounding). Masked content words need the image, so image-conditioned MLM pushes the towers to encode which objects are present, which PMRP rewards. Predictions: gains concentrate on captions that name objects; class-set purity rises in the tower that carries the change; content-word masking (arm M2b) beats random masking on PMRP.
 - H2 (softer similarity). The auxiliary losses lower the contrastive pressure that pushes same-class items apart (validation InfoNCE was lower in all three reconstruction models). Predictions: higher same-class negative similarity in every reconstruction model, `fusion_none` included, and no special role for object words.
@@ -196,7 +196,7 @@ The arms and the advance rule are fixed (spec section 6); Stage 0 changes only h
 - M5 (MAE off, MLM kept). The common effects point to the text side, the fusion-specific effect (rsum, and PMRP against `fusion_none`) to the image side. M5 should keep the PMRP gain if MAE contributes little, and could raise it if MAE costs the image side class structure (section 3.2).
 - M1 (MLM reads the full image, with and without stop-gradient into the vision tower). The fusion image tower alone carried the rsum gain and the fusion-specific PMRP. If MLM's gradient into the vision tower produces them, the detached variant should lose both and the attached variant may enlarge them.
 - M3 and M6 route reconstruction into the pooled retrieval embedding. The reconstruction models already keep a shortened caption closer to its image (−0.0100 to −0.0105 against −0.0129) without a ranking change; M6 makes the masked caption an explicit, less specific positive, so it tests whether that tolerance can become one.
-- R2, R3 and R5 target the recipe gap to PCME++'s InfoNCE fine-tune ([lever review](2026-10-03_lever_review.md), section 4), not H1 or H2.
+- R2, R3 and R5 target the recipe gap to PCME++'s InfoNCE fine-tune ([lever review](../../literature/2026-10-03_lever_review.md), section 4), not H1 or H2.
 
 ## 6. Caveats
 

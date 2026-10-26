@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-03_lever_review.md. Phase 2 bibliographies are as written; V1/V2 list the corrections, and the report uses corrected values.
+> Supporting file for docs/reports/literature/2026-10-03_lever_review.md. Phase 2 bibliographies are as written; V1/V2 list the corrections, and the report uses corrected values.
 
 # B1: Masked-reconstruction auxiliary objectives combined with a contrastive loss
 

@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md. The shared brief given to every Phase 2 agent, as written.
+> Supporting file for docs/reports/literature/2026-10-06_masked_decoder_readings_review.md. The shared brief given to every Phase 2 agent, as written.
 
 # Shared brief: integrative literature review on H-b for MultiMAE (2026-10-06)
 

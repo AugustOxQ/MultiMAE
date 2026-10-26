@@ -1,6 +1,6 @@
 # Final review: masked-decoder readings review (H-b)
 
-Reviewer: final whole-report review, 2026-10-06 21:05. Report: `docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md` (figures `hb_chain.png`, `design_map.png`; index row in `docs/reports/reports_sum.md`). Raw paper copies read with grep and `python3 -I` only (scratchpad `hb_review/dl_*`); a helper `fr_scripts/ctx.py` printed text windows. Local data re-derived with `/root/miniconda3/envs/MultiMAE/bin/python -I`.
+Reviewer: final whole-report review, 2026-10-06 21:05. Report: `docs/reports/literature/2026-10-06_masked_decoder_readings_review.md` (figures `hb_chain.png`, `design_map.png`; index row in `docs/reports/reports_sum.md`). Raw paper copies read with grep and `python3 -I` only (scratchpad `hb_review/dl_*`); a helper `fr_scripts/ctx.py` printed text windows. Local data re-derived with `/root/miniconda3/envs/MultiMAE/bin/python -I`.
 
 **Verdict: APPROVED WITH FIXES.** Four MAJOR findings, all text edits with no new analysis. Two come from verifier errors that the report carried forward (V3 on Panagopoulou et al. and UniDisc). The other two are summary-level claims stated more broadly than the body's own evidence allows. The local data facts, project numbers, code facts, verifier recount (203 rows), sMCL correction, Cekinmez locator correction and GPU-hour arithmetic all reproduce.
 

@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-03_lever_review.md. Verification of B1 and B4 as written; its corrections override those bibliographies, and the report uses corrected values.
+> Supporting file for docs/reports/literature/2026-10-03_lever_review.md. Verification of B1 and B4 as written; its corrections override those bibliographies, and the report uses corrected values.
 
 # V1: Source verification of B1 (masked objectives) and B4 (novelty and polysemy)
 

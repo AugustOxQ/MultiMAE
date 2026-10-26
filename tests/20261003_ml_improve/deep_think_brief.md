@@ -27,7 +27,7 @@ check. Polysemy here has two readings: one-to-many matching (an image fits many 
 ## Read these (in this order)
 1. `CLAUDE.md` (architecture, switches, metrics).
 2. `docs/superpowers/specs/2026-10-03-improve-multilearner-design.md` (staged plan, metrics, H1/H2, arms, success bar).
-3. `docs/reports/auto/v1/2026-10-03_lever_review.md` (integrative lit review; supporting files in
+3. `docs/reports/literature/2026-10-03_lever_review.md` (integrative lit review; supporting files in
    `docs/reports/assets/2026-10-03_lever_review/`, B4 covers masking and polysemy).
 4. `docs/reports/auto/v1/2026-10-03_stage0_diagnostics.md` (where the fusion PMRP gain sits; H1 vs H2).
 5. `tests/20261003_ml_improve/runs.md` (every Stage 1 and Stage 2 result and ruling, in order) and `caveats.md`.

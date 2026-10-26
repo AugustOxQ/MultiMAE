@@ -1,7 +1,7 @@
 # Improving fusion_multilearner: staged experiment design
 
 Date: 2026-10-03. Branch `eval-baselines`. Inputs: the [baselines report](../../reports/auto/v1/2026-10-03_baselines.md),
-the [lever review](../../reports/auto/v1/2026-10-03_lever_review.md) and the
+the [lever review](../../reports/literature/2026-10-03_lever_review.md) and the
 [handoff](../handoffs/2026-10-03-improve-fusion-multilearner-handoff.md).
 
 ## 1. Goal

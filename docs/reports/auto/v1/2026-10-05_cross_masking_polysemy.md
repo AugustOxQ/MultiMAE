@@ -1,6 +1,6 @@
 # Cross-modal masking and polysemy: what Stage 1 and Stage 2 show, and where the line could go
 
-Date: 2026-10-05. Branch `main`. Source note: [`tests/20261003_ml_improve/2026-10-05_cross_masking_deep_think.md`](../../../../tests/20261003_ml_improve/2026-10-05_cross_masking_deep_think.md), written to the brief `deep_think_brief.md` in the same folder under a hard time limit, so shorter than the brief allowed and with less re-derivation than planned. Previous reports: [the Stage 0 diagnostics](2026-10-03_stage0_diagnostics.md) and [the lever review](2026-10-03_lever_review.md).
+Date: 2026-10-05. Branch `main`. Source note: [`tests/20261003_ml_improve/2026-10-05_cross_masking_deep_think.md`](../../../../tests/20261003_ml_improve/2026-10-05_cross_masking_deep_think.md), written to the brief `deep_think_brief.md` in the same folder under a hard time limit, so shorter than the brief allowed and with less re-derivation than planned. Previous reports: [the Stage 0 diagnostics](2026-10-03_stage0_diagnostics.md) and [the lever review](../../literature/2026-10-03_lever_review.md).
 
 Marks: **[R]** = a mean we re-derived in this session from `res/coco/multimae/*/run.json` (baseline seed 42 from its `eval` block). **[U]** = from the brief, unverified (every p-value, every ArtELingo count), or from the cited report and not re-derived (Stage 0 and literature numbers).
 

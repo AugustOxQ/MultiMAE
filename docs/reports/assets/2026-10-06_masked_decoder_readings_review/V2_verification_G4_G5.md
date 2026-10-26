@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md. Verification of G4 and G5 as written; its corrections override those bibliographies, and the report uses corrected values. Its summary counts (section 1) differ from its claim-row tables (section 3); the report uses the rows (G4 30 confirmed, 8 corrected, 3 not re-checked; G5 24, 5, 9). Its prose (row 9, problem 5) says sMCL wins only at M <= 3, but its own row values (0.911 vs beam 0.888 at M = 4) show sMCL ahead up to M = 4.
+> Supporting file for docs/reports/literature/2026-10-06_masked_decoder_readings_review.md. Verification of G4 and G5 as written; its corrections override those bibliographies, and the report uses corrected values. Its summary counts (section 1) differ from its claim-row tables (section 3); the report uses the rows (G4 30 confirmed, 8 corrected, 3 not re-checked; G5 24, 5, 9). Its prose (row 9, problem 5) says sMCL wins only at M <= 3, but its own row values (0.911 vs beam 0.888 at M = 4) show sMCL ahead up to M = 4.
 
 # V2: Source verification of G4 (multiple readings) and G5 (cross-modal mixing)
 

@@ -1,4 +1,4 @@
-"""Figures of docs/reports/auto/v1/2026-10-03_lever_review.md (integrative literature review, 2026-10-03).
+"""Figures of docs/reports/literature/2026-10-03_lever_review.md (integrative literature review, 2026-10-03).
 
 Writes to docs/reports/assets/2026-10-03_lever_review/:
   routes.png        Figure 1: four routes by which an auxiliary loss can reach the retrieval embedding

@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-03_lever_review.md. Phase 2 bibliographies are as written; V1/V2 list the corrections, and the report uses corrected values.
+> Supporting file for docs/reports/literature/2026-10-03_lever_review.md. Phase 2 bibliographies are as written; V1/V2 list the corrections, and the report uses corrected values.
 
 # B2: Representing one-to-many matches, and fusion at retrieval time, on top of a pretrained dual encoder
 

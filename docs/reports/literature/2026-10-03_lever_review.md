@@ -1,6 +1,6 @@
 # Masked objectives, one-to-many retrieval and polysemy: an integrative review of levers for MultiMAE
 
-Date: 2026-10-03. Branch `eval-baselines`. Previous report: [the v1 baselines](2026-10-03_baselines.md). Figures are built by [`build_2026-10-03_lever_review.py`](../../assets/build_2026-10-03_lever_review.py); the bibliographies, verification records and synthesis behind the review are in [`assets/2026-10-03_lever_review/`](../../assets/2026-10-03_lever_review/).
+Date: 2026-10-03. Branch `eval-baselines`. Previous report: [the v1 baselines](../auto/v1/2026-10-03_baselines.md). Figures are built by [`build_2026-10-03_lever_review.py`](../assets/build_2026-10-03_lever_review.py); the bibliographies, verification records and synthesis behind the review are in [`assets/2026-10-03_lever_review/`](../assets/2026-10-03_lever_review/).
 
 ## Summary
 
@@ -14,13 +14,13 @@ For the next experiments, this points to levers that route the masked signal int
 
 ## 1. How we got here
 
-The [baselines report](2026-10-03_baselines.md) trained the four models on full COCO, three seeds each. Against the contrastive baseline, `fusion_multilearner` gained +0.39 PMRP (56.88 ± 0.04 against 56.49 ± 0.05, p = 0.0009, the only one of 33 tests to survive a Holm correction), +2.36 rsum (444.30 against 441.94, p = 0.11) and +0.02 mAP@R (p = 0.92). Contrastive fine-tuning itself had gained 79.96 rsum and 10.22 mAP@R over zero-shot CLIP B/32 but only 1.17 PMRP (55.32 to 56.49), so fusion added a third of the fine-tuning gain on PMRP and nothing on mAP@R. Without cross-modal reading (`fusion_none`) the PMRP gain was +0.12 (p = 0.07). The validation losses showed the direction of use: MLM loss fell from 1.623 without fusion to 1.516 and 1.557 with it, while MAE loss rose from 0.658 to 0.715 and 0.710. The text decoder used the image; the image decoder gained nothing from the caption.
+The [baselines report](../auto/v1/2026-10-03_baselines.md) trained the four models on full COCO, three seeds each. Against the contrastive baseline, `fusion_multilearner` gained +0.39 PMRP (56.88 ± 0.04 against 56.49 ± 0.05, p = 0.0009, the only one of 33 tests to survive a Holm correction), +2.36 rsum (444.30 against 441.94, p = 0.11) and +0.02 mAP@R (p = 0.92). Contrastive fine-tuning itself had gained 79.96 rsum and 10.22 mAP@R over zero-shot CLIP B/32 but only 1.17 PMRP (55.32 to 56.49), so fusion added a third of the fine-tuning gain on PMRP and nothing on mAP@R. Without cross-modal reading (`fusion_none`) the PMRP gain was +0.12 (p = 0.07). The validation losses showed the direction of use: MLM loss fell from 1.623 without fusion to 1.516 and 1.557 with it, while MAE loss rose from 0.658 to 0.715 and 0.710. The text decoder used the image; the image decoder gained nothing from the caption.
 
 A quick scan on 2 October had found that MAE helped CLIP-style training at small scale and stopped helping at 1.4B pairs (Weers et al.), that MaskCLIP, MaskVLM and MAMO combine contrastive and masked objectives, and that the one-to-many line (PCME, PCME++, MAP, ProLIP, ECCV Caption) models multiplicity with probabilistic embeddings. It found no work scoring fusion plus masked reconstruction on polysemy-aware retrieval. On 3 October the author asked whether masked models can improve polysemy understanding, where polysemy covers one-to-many matching (an image fits many captions, a caption many images) and lexical ambiguity (a query word with several senses). The question is not yet a paper topic, and the review was meant to help find one.
 
 More runs alone could not tell us whether anyone had measured a masked objective on these metrics, what had moved ECCV mAP@R in our setting, or why PMRP might move without mAP@R. At about 7.2 GPU-hours per multilearner run, the budget buys about eleven 3-seed multilearner arms (computed), so we wanted the evidence first.
 
-*Sources: the [baselines report](2026-10-03_baselines.md), Summary and sections 1 to 4; the review brief (`00_brief.md`); Weers et al. 2023; Dong et al. 2023; Kwon et al. 2023 (MaskVLM); Zhao et al. 2023; Ji et al. 2023; Chun et al. 2025.*
+*Sources: the [baselines report](../auto/v1/2026-10-03_baselines.md), Summary and sections 1 to 4; the review brief (`00_brief.md`); Weers et al. 2023; Dong et al. 2023; Kwon et al. 2023 (MaskVLM); Zhao et al. 2023; Ji et al. 2023; Chun et al. 2025.*
 
 ## 2. Method
 
@@ -48,13 +48,13 @@ Neither pass found a fabricated source. V1 found no unverifiable source (one ven
 
 A synthesis agent then wrote the thematic synthesis, tables, gaps and ranked levers, marking its own arithmetic and inferences, without re-reading sources. Its effect ranges for untested levers are extrapolations from other settings and are labelled so below.
 
-Supporting files, each with one added header line: bibliographies [B1](../../assets/2026-10-03_lever_review/B1_masked_objectives.md), [B2](../../assets/2026-10-03_lever_review/B2_retrieval_representation.md), [B3](../../assets/2026-10-03_lever_review/B3_recipes_and_leaderboard.md), [B4](../../assets/2026-10-03_lever_review/B4_novelty_polysemy.md); verification [V1](../../assets/2026-10-03_lever_review/V1_verification_B1_B4.md), [V2](../../assets/2026-10-03_lever_review/V2_verification_B2_B3.md); [synthesis](../../assets/2026-10-03_lever_review/S_synthesis.md).
+Supporting files, each with one added header line: bibliographies [B1](../assets/2026-10-03_lever_review/B1_masked_objectives.md), [B2](../assets/2026-10-03_lever_review/B2_retrieval_representation.md), [B3](../assets/2026-10-03_lever_review/B3_recipes_and_leaderboard.md), [B4](../assets/2026-10-03_lever_review/B4_novelty_polysemy.md); verification [V1](../assets/2026-10-03_lever_review/V1_verification_B1_B4.md), [V2](../assets/2026-10-03_lever_review/V2_verification_B2_B3.md); [synthesis](../assets/2026-10-03_lever_review/S_synthesis.md).
 
 ## 3. Findings by theme
 
 MultiMAE retrieves with CLIP's clean pooled embedding, which the masked losses reach only through the shared tower weights. Figure 1 sets this route beside three others in the literature (our framing). Only route 1 has been measured in CLIP-scale dual encoders, with small effects.
 
-![Figure 1](../../assets/2026-10-03_lever_review/routes.png)
+![Figure 1](../assets/2026-10-03_lever_review/routes.png)
 
 *Figure 1. Four routes by which an auxiliary loss can reach the retrieval embedding. Grey: the same as MultiMAE today. Orange: replaced. Teal: new. Purple: unchanged in every route, retrieval by cosine similarity of the clean pooled embeddings. Dashed: how the auxiliary loss shapes the retrieval embedding. Levers R3, M3 and M6 (section 8) test routes 2, 3 and 4.*
 
@@ -121,7 +121,7 @@ Evidence strength: weak; no direct test exists.
 | Probabilistic vs mean-only inference | 40.2 → 40.2 | 0.0 | same model | PCME++ C.7 |
 | `fusion_multilearner` vs contrastive (ours) | 36.94 → 36.95 | +0.02 | 3 seeds; unrounded means | baselines report |
 
-![Figure 2](../../assets/2026-10-03_lever_review/eccv_changes.png)
+![Figure 2](../assets/2026-10-03_lever_review/eccv_changes.png)
 
 *Figure 2. The changes of Table 3, each over its own paper's baseline. Hatched: GPO, whose baseline pooling is unknown. Shaded row: our `fusion_multilearner` against the contrastive baseline. Dashed line: the 2.06 gap between our contrastive baseline (36.94) and PCME++'s InfoNCE fine-tune (39.0), which bundles several recipe differences.*
 

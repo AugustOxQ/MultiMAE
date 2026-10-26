@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md. Phase 2 novelty sweep as written; V3 lists the corrections, and the report uses corrected values.
+> Supporting file for docs/reports/literature/2026-10-06_masked_decoder_readings_review.md. Phase 2 novelty sweep as written; V3 lists the corrections, and the report uses corrected values.
 
 # N: Novelty sweep for H-b (masked cross-modal decoder as a model of several readings)
 

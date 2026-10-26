@@ -11,7 +11,7 @@ launches until the user approves a written spec, except resuming the running COC
 ## Read in this order
 
 1. `docs/user_read/2026-10-06_masking_and_polysemy.md` (the line so far, plain words).
-2. `docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md`: the H-b literature review, especially the
+2. `docs/reports/literature/2026-10-06_masked_decoder_readings_review.md`: the H-b literature review, especially the
    Summary, section 5 (measurement toolkit), section 6 (designs D1 to D11), section 7 (proposed sequence) and
    section 8 (counter-arguments). Supporting files, including the synthesis `S_synthesis.md`, in
    `docs/reports/assets/2026-10-06_masked_decoder_readings_review/`. Final review and re-review (approved):

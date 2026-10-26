@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md. Verification of G1 to G3 as written; its corrections override those bibliographies, and the report uses corrected values.
+> Supporting file for docs/reports/literature/2026-10-06_masked_decoder_readings_review.md. Verification of G1 to G3 as written; its corrections override those bibliographies, and the report uses corrected values.
 
 # V1: Source verification of G1 (generative scoring), G2 (human disagreement) and G3 (affective image-text)
 

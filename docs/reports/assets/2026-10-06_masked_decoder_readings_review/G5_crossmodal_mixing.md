@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md. Phase 2 bibliography as written; V2 lists the corrections, and the report uses corrected values.
+> Supporting file for docs/reports/literature/2026-10-06_masked_decoder_readings_review.md. Phase 2 bibliography as written; V2 lists the corrections, and the report uses corrected values.
 
 # G5: cross-modal mixing augmentation (bibliography, Phase 2)
 

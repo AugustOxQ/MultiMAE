@@ -1,6 +1,6 @@
 # No source we found has tested a masked cross-modal decoder as a model of several readings, and a captioner is the baseline it must beat: an integrative review of H-b
 
-Date: 2026-10-06. Branch `ml-improve-stages-1-2`. Previous reports: [Stages 1 and 2 of the masking line](2026-10-06_masking_stages_1_2.md), and the [lever review](2026-10-03_lever_review.md) of 2026-10-03, which this review extends without repeating. Figures are built by [`build_2026-10-06_masked_decoder_readings_review.py`](../../assets/build_2026-10-06_masked_decoder_readings_review.py); the brief, bibliographies, verification records and synthesis behind the review are in [`assets/2026-10-06_masked_decoder_readings_review/`](../../assets/2026-10-06_masked_decoder_readings_review/).
+Date: 2026-10-06. Branch `ml-improve-stages-1-2`. Previous reports: [Stages 1 and 2 of the masking line](../auto/v1/2026-10-06_masking_stages_1_2.md), and the [lever review](2026-10-03_lever_review.md) of 2026-10-03, which this review extends without repeating. Figures are built by [`build_2026-10-06_masked_decoder_readings_review.py`](../assets/build_2026-10-06_masked_decoder_readings_review.py); the brief, bibliographies, verification records and synthesis behind the review are in [`assets/2026-10-06_masked_decoder_readings_review/`](../assets/2026-10-06_masked_decoder_readings_review/).
 
 ## Summary
 
@@ -67,7 +67,7 @@ The author's other project, CoSiR, uses ArtELingo for conditional image-text sim
 | S5 | Masking teaches under-specification or ambiguity, beyond ProLIP's masked inclusion. |
 | S6 | Mixing or synthetic ambiguous images are combined with masked reconstruction for polysemy. |
 
-*Sources: the review brief (`00_brief.md`); the [Stages 1 and 2 report](2026-10-06_masking_stages_1_2.md), Summary and Table 7; N, sub-claim list; synthesis sections 1.2 and 5.1 for the ArtELingo counts (the lead agent's local counts).*
+*Sources: the review brief (`00_brief.md`); the [Stages 1 and 2 report](../auto/v1/2026-10-06_masking_stages_1_2.md), Summary and Table 7; N, sub-claim list; synthesis sections 1.2 and 5.1 for the ArtELingo counts (the lead agent's local counts).*
 
 ## 2. Method
 
@@ -126,7 +126,7 @@ Made here or by the final review, where the synthesis or a verifier disagreed wi
 
 A synthesis agent integrated G1 to G5 and N as corrected by V1 to V3, with the brief, the Stages 1 and 2 report, its own reading of `mmae/models/{model,decoders,masking,fusion}.py` (marked [code] in the synthesis) and facts the lead agent checked locally (ArtELingo split counts, the AL-28 CSV and compute). It did not re-read sources. Its costs, kill thresholds and sequence are proposals.
 
-Supporting files, each with one added header line: the [brief](../../assets/2026-10-06_masked_decoder_readings_review/00_brief.md); bibliographies [G1](../../assets/2026-10-06_masked_decoder_readings_review/G1_generative_scoring.md), [G2](../../assets/2026-10-06_masked_decoder_readings_review/G2_human_disagreement.md), [G3](../../assets/2026-10-06_masked_decoder_readings_review/G3_affective_image_text.md), [G4](../../assets/2026-10-06_masked_decoder_readings_review/G4_multiple_readings.md), [G5](../../assets/2026-10-06_masked_decoder_readings_review/G5_crossmodal_mixing.md), [N](../../assets/2026-10-06_masked_decoder_readings_review/N_novelty_hb.md); verification [V1](../../assets/2026-10-06_masked_decoder_readings_review/V1_verification_G1_G3.md), [V2](../../assets/2026-10-06_masked_decoder_readings_review/V2_verification_G4_G5.md), [V3](../../assets/2026-10-06_masked_decoder_readings_review/V3_verification_N.md); [synthesis](../../assets/2026-10-06_masked_decoder_readings_review/S_synthesis.md).
+Supporting files, each with one added header line: the [brief](../assets/2026-10-06_masked_decoder_readings_review/00_brief.md); bibliographies [G1](../assets/2026-10-06_masked_decoder_readings_review/G1_generative_scoring.md), [G2](../assets/2026-10-06_masked_decoder_readings_review/G2_human_disagreement.md), [G3](../assets/2026-10-06_masked_decoder_readings_review/G3_affective_image_text.md), [G4](../assets/2026-10-06_masked_decoder_readings_review/G4_multiple_readings.md), [G5](../assets/2026-10-06_masked_decoder_readings_review/G5_crossmodal_mixing.md), [N](../assets/2026-10-06_masked_decoder_readings_review/N_novelty_hb.md); verification [V1](../assets/2026-10-06_masked_decoder_readings_review/V1_verification_G1_G3.md), [V2](../assets/2026-10-06_masked_decoder_readings_review/V2_verification_G4_G5.md), [V3](../assets/2026-10-06_masked_decoder_readings_review/V3_verification_N.md); [synthesis](../assets/2026-10-06_masked_decoder_readings_review/S_synthesis.md).
 
 *Sources: the brief; G1 to G5 and N, section 1 of each; V1 to V3, sections 1 and 3; synthesis header and sections 1, 3 and 9.*
 
@@ -134,7 +134,7 @@ Supporting files, each with one added header line: the [brief](../../assets/2026
 
 Figure 1 places the six sub-claims on the chain that H-b needs. The masked pass, the fusion and the MLM decoder exist in MultiMAE today. Everything after the decoder is new: comparing its distribution with human readings, comparing it with the same model's dual encoder, and using it at retrieval.
 
-![Figure 1](../../assets/2026-10-06_masked_decoder_readings_review/hb_chain.png)
+![Figure 1](../assets/2026-10-06_masked_decoder_readings_review/hb_chain.png)
 
 *Figure 1. The H-b chain. Grey boxes: as in MultiMAE today. Teal boxes: the measurement or use H-b needs. Filled blue markers and solid cards: sub-claims partly established, in other models; dashed markers and cards: open. Each card lists what the literature established, what is open, and the review's novelty-risk judgment.*
 
@@ -379,7 +379,7 @@ GPU-hours are the lead agent's estimates: an ArtELingo masked run takes about 4 
 | D10 | mixing: either-one against both-at-once | S6 | 13.5 (X2 alone) to 27 (with X1) | moderate | X2 within seed noise of X0 on every natural-data metric | 4 |
 | D11 | unmixing | S6 | about 14 | moderate | as D10 | after 10-10 |
 
-![Figure 2](../../assets/2026-10-06_masked_decoder_readings_review/design_map.png)
+![Figure 2](../assets/2026-10-06_masked_decoder_readings_review/design_map.png)
 
 *Figure 2. Candidate designs by estimated GPU-hours (right, log scale) against the sub-claims each tests (left). Filled circles: zero training on existing COCO checkpoints. Open circles: zero training, but needing the new ArtELingo checkpoints. Squares: training runs before 2026-10-10. Triangles: designs left for after 2026-10-10. Bars span the synthesis's ranges; "at most 1" and "under 1" are drawn at 1. Dashed line: one ArtELingo masked run, about 4 hours (untimed).*
 

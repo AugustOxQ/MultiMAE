@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-03_lever_review.md. Verification of B2 and B3 as written; its corrections override those bibliographies, and the report uses corrected values.
+> Supporting file for docs/reports/literature/2026-10-03_lever_review.md. Verification of B2 and B3 as written; its corrections override those bibliographies, and the report uses corrected values.
 
 # V2: Source verification of B2 (retrieval representation) and B3 (recipes and leaderboard)
 

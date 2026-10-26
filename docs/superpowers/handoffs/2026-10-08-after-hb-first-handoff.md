@@ -16,7 +16,7 @@ or launches until the user approves a written spec. Nothing is running anywhere.
 2. `docs/superpowers/specs/2026-10-07-hb-first-artelingo-design.md`: the user's decisions and the pre-registered rules
    (decision table at the top, section 5.1 emotion weight, section 13 timeline).
 3. `tests/20261007_hb/runs.md`: run registry and timeline of the spec (last entry 17:25 is the wrap-up).
-4. Background as needed: the H-b literature review `docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md`
+4. Background as needed: the H-b literature review `docs/reports/literature/2026-10-06_masked_decoder_readings_review.md`
    (sections 6 to 8: designs D1 to D11 and counter-arguments; D3, D5, D8 to D11 have not been run), and
    `docs/user_read/2026-10-06_masking_and_polysemy.md` for the COCO line before H-b.
 5. Memory in `~/.claude/projects/-project-MultiAlign-MultiMAE/memory/` (research question, line decisions, H-b spec).

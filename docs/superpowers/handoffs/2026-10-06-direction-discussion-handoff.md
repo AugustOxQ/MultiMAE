@@ -20,7 +20,7 @@ check; the line is looking for a real polysemy topic.
    `docs/reports/assets/build_2026-10-06_masking_stages_1_2.py` prints every number; reviewed and approved, review in
    `tests/20261003_ml_improve/review_2026-10-06_masking_stages_1_2.md`).
 3. **Stage 0 diagnostics** `docs/reports/auto/v1/2026-10-03_stage0_diagnostics.md`, the **literature review**
-   `docs/reports/auto/v1/2026-10-03_lever_review.md` (B4 in its assets covers masking and polysemy), and the
+   `docs/reports/literature/2026-10-03_lever_review.md` (B4 in its assets covers masking and polysemy), and the
    **deep-think note** `docs/reports/auto/v1/2026-10-05_cross_masking_polysemy.md` (directions A, B, C).
 4. **Design spec** `docs/superpowers/specs/2026-10-03-improve-multilearner-design.md` (pre-registered rules),
    **run registry** `tests/20261003_ml_improve/runs.md` (every result and ruling in order), `CLAUDE.md` (gitignored,

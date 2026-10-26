@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md. Phase 2 bibliography as written; V1 lists the corrections, and the report uses corrected values.
+> Supporting file for docs/reports/literature/2026-10-06_masked_decoder_readings_review.md. Phase 2 bibliography as written; V1 lists the corrections, and the report uses corrected values.
 
 # G2: Does a model's predictive distribution match human disagreement, and how is that measured?
 

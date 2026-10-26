@@ -1,4 +1,4 @@
-> Supporting file for docs/reports/auto/v1/2026-10-06_masked_decoder_readings_review.md. Phase 3 synthesis as written, built from G1 to G5 and N as corrected by V1 to V3; the report condenses it. The report corrects two points: sMCL led beam search at M = 2 to 4 and trailed only at M = 5 (V2 rows 8, 9), and Cekinmez et al.'s 0.47 and 0.73 are in Fig 2 and Table 2, not Table 1.
+> Supporting file for docs/reports/literature/2026-10-06_masked_decoder_readings_review.md. Phase 3 synthesis as written, built from G1 to G5 and N as corrected by V1 to V3; the report condenses it. The report corrects two points: sMCL led beam search at M = 2 to 4 and trailed only at M = 5 (V2 rows 8, 9), and Cekinmez et al.'s 0.47 and 0.73 are in Fig 2 and Table 2, not Table 1.
 > The final review (tests/20261003_ml_improve/review_2026-10-06_masked_decoder_readings_review.md) superseded V3 problem 1 (Panagopoulou et al.) and row 24 (UniDisc), which this synthesis follows; the report uses the final review's values.
 
 # S: Synthesis for H-b, the masked cross-modal decoder as a model of several readings (MultiMAE)
