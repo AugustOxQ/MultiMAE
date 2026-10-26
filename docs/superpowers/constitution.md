@@ -5,7 +5,7 @@
 The project is new and its direction is not settled, so this file holds no principles yet. Until it does:
 
 - A spec's §7 Constitution check uses the user's global rules in `~/.claude/rules/` (baselines in `report-writing.md`,
-  the final review in `final-review.md`, and the others that apply) and says so.
+  the final whole-branch review in `~/.claude/references/matt-chain.md`, and the others that apply) and says so.
 - Nothing in this file outranks a spec.
 
 **When to write the real one.** Once the user confirms what the project works on: the main question, the datasets, and

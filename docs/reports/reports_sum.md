@@ -8,8 +8,9 @@ This file is the index to every report in `docs/reports/`. Keep it current: ever
 |---|---|
 | `auto/<line>/` | **Automatic reports.** One per experiment, diagnostic, review or brainstorm, written when the task finishes. Grouped by research line: `v0`, `v1`. |
 | `auto/<line>/pilots/<dir>/` | Pilot reports and debug logs copied from `tests/<dir>/` (or v0's `src/test/<dir>/`) on branches or tags whose code is not on main. |
-| `stage/` | **Stage reports.** Syntheses across several experiments, including progress and comprehensive reports, plus their slide markdown. |
-| `weekly/` | **Weekly reports** and their slide markdown. |
+| `literature/` | **Literature notes.** Literature checks (research loop step 3), novelty checks and any other search of what the field knows. Each new check reads them first. |
+| `stage/` | **Stage reports.** Syntheses across several experiments, each with its outside-view report (`*.html`) and its dev-log post (`*_devlog.md`), plus the dev-log primer. |
+| `weekly/` | **Weekly reports** and their slide markdown; drafts in `weekly/drafts/`. |
 | `pptx/` | **Slide decks (.pptx).** Built from slide markdown by `assets/build_*_slides.py`. `*.pptx` is gitignored. |
 | `assets/` | Figures, figure data and build scripts used by the reports. |
 
@@ -25,10 +26,10 @@ Research lines:
 ## Adding a report
 
 1. **Name:** `YYYY-MM-DD_<topic>.md`. Leave out words the folder already says: no `weekly_`, `stage_report`, `_report` or `mmae_`.
-2. **Place:** put it in `auto/<line>/`, `stage/` or `weekly/`. Slide markdown sits next to its report. Decks go in `pptx/`, their build script in `assets/build_<date>_<topic>_slides.py`.
+2. **Place:** put it in `auto/<line>/`, `literature/`, `stage/` or `weekly/`. Weekly slide markdown sits next to its report. Decks go in `pptx/`, their build script in `assets/build_<date>_<topic>_slides.py`.
 3. **Index:** add one row to the matching table below, oldest first, with a one-line description. A new research line gets `auto/<line>/`, a table here and a row in the list above.
 4. **Reports on other branches:** these stay on their branch until a stage report or comparison needs them. Then copy the docs (never the code, never with `git merge`) into this layout and add rows here.
-5. **Check:** run `python scripts/check_reports_sum.py`. It fails if any report, deck or pilot folder is missing here, if a link here is broken, or if a file sits loose in `docs/reports/`.
+5. **Check:** run `docs-check` (from `/project/tools`) and `python scripts/check_reports_sum.py`. The latter fails if any report, deck or pilot folder is missing here, if a link here is broken, or if a file sits loose in `docs/reports/`.
 
 ## auto/v0: pre-refactor code
 

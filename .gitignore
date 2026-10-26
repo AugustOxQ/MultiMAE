@@ -170,3 +170,7 @@ CLAUDE.md
 # Cursor
 cursor_log/
 cursor_tmp_file/
+*.pptx
+
+# Loop scratch: tickets, notes and the pending-deletions ledger (loop-chats.md)
+.scratch/
