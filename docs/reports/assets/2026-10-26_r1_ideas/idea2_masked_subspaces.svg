@@ -1,0 +1,521 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1330" viewBox="0 0 1500 1330"><defs><marker id="ah" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="#222222"/></marker></defs><rect width="1500" height="1330" fill="#FFFFFF"/><text x="750" y="38" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:22px;font-weight:bold;">Idea 2 as the literature check read it: PVSE with masked sub-space training in place of the K attention heads</text>
+<text x="750" y="64" text-anchor="middle" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:15px;font-weight:normal;">Two readings of “masked sub-space”. In both, the masked caption decoder is the signal that assigns a caption (a reading) to one of K sub-spaces.</text>
+<rect x="1190" y="84" width="26" height="14" rx="3" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="1224" y="95" text-anchor="start" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">trained module</text>
+<rect x="1190" y="106" width="26" height="14" rx="3" fill="#F3F3F3" stroke="#7A7A7A" stroke-width="1.6"/>
+<text x="1224" y="117" text-anchor="start" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">data, tokens, embeddings</text>
+<rect x="1190" y="128" width="26" height="14" rx="3" fill="#DCEBF7" stroke="#3A78B5" stroke-width="1.6"/>
+<text x="1224" y="139" text-anchor="start" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">fixed operation</text>
+<rect x="1190" y="150" width="26" height="14" rx="3" fill="#E3F2E1" stroke="#3C8C3C" stroke-width="1.6"/>
+<text x="1224" y="161" text-anchor="start" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">loss</text>
+<rect x="1190" y="172" width="26" height="14" rx="3" fill="#FFFFFF" stroke="#9A9A9A" stroke-width="1.6" stroke-dasharray="7,5"/>
+<text x="1224" y="183" text-anchor="start" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">control or note</text>
+<rect x="40" y="100" width="1120" height="190" rx="12" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.2"/>
+<text x="54" y="124" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:17px;font-weight:bold;">PVSE (Song and Soleymani, CVPR 2019): what is replaced</text>
+<rect x="60" y="140" width="120" height="80" rx="6" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="1.6"/>
+<rect x="63" y="143" width="114" height="74" rx="4" fill="#E8EEF3"/>
+<line x1="68" y1="189.6" x2="172" y2="189.6" stroke="#8AA0B0" stroke-width="1.5"/>
+<circle cx="146.39999999999998" cy="166.4" r="8.0" fill="#F0C060"/>
+<text x="120.0" y="212" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">image</text>
+<polyline points="180,180 230,180" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="232" y="150" width="200" height="60" rx="8" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="332.0" y="176.10000000000002" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">K attention heads</text>
+<text x="332.0" y="193.00000000000003" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:normal;">over the local features</text>
+<rect x="366" y="141" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="395.0" y="154" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<polyline points="432,180 480,180" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="482.0" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="491.4" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="500.8" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="510.1" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="519.5" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="528.9" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="538.2" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="547.6" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="557.0" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="566.4" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="575.8" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="585.1" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="594.5" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="603.9" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="613.2" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="622.6" y="150" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="481" y="149" width="151" height="16" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="640" y="161.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">image embedding 1</text>
+<rect x="482.0" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="491.4" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="500.8" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="510.1" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="519.5" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="528.9" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="538.2" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="547.6" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="557.0" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="566.4" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="575.8" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="585.1" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="594.5" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="603.9" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="613.2" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="622.6" y="172" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="481" y="171" width="151" height="16" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="640" y="183.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">image embedding 2</text>
+<rect x="482.0" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="491.4" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="500.8" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="510.1" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="519.5" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="528.9" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="538.2" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="547.6" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="557.0" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="566.4" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="575.8" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="585.1" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="594.5" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="603.9" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="613.2" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="622.6" y="194" width="8.4" height="14" fill="#5B8DB8"/>
+<rect x="481" y="193" width="151" height="16" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="640" y="205.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">image embedding 3</text>
+<rect x="60" y="232" width="120" height="44" rx="8" fill="#F3F3F3" stroke="#7A7A7A" stroke-width="1.6"/>
+<text x="120.0" y="250.39999999999998" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">caption</text>
+<text x="120.0" y="266.0" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">“a dog on the beach”</text>
+<polyline points="180,254 230,254" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="232" y="232" width="200" height="44" rx="8" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="332.0" y="250.39999999999998" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">K attention heads</text>
+<text x="332.0" y="266.0" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">over the word features</text>
+<rect x="366" y="223" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="395.0" y="236" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<polyline points="432,254 480,254" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="482.0" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="491.4" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="500.8" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="510.1" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="519.5" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="528.9" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="538.2" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="547.6" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="557.0" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="566.4" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="575.8" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="585.1" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="594.5" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="603.9" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="613.2" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="622.6" y="247" width="8.4" height="14" fill="#B07A3C"/>
+<rect x="481" y="246" width="151" height="16" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="640" y="258.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">K caption embeddings</text>
+<rect x="822" y="140" width="325" height="70" rx="8" fill="#E3F2E1" stroke="#3C8C3C" stroke-width="1.6"/>
+<text x="984.5" y="163.6" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">best-of-K match (MIL): the pair of</text>
+<text x="984.5" y="179.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">embeddings that agrees most carries the loss</text>
+<text x="984.5" y="194.8" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">+ a diversity loss that keeps the K apart</text>
+<rect x="822" y="222" width="325" height="50" rx="8" fill="#DCEBF7" stroke="#3A78B5" stroke-width="1.6"/>
+<text x="984.5" y="251.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">retrieval: max over the K × K pairs</text>
+<polyline points="792,180 820,180" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<text x="600" y="300" text-anchor="middle" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:15px;font-weight:bold;">↓  replaced by: K sub-spaces that a masked caption decoder assigns readings to  ↓</text>
+<rect x="40" y="320" width="1430" height="470" rx="12" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.2"/>
+<text x="54" y="344" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:17px;font-weight:bold;">Reading (a): K sub-spaces of the embedding dimensions (masks on the 512-d pooled embedding)</text>
+<rect x="60" y="360" width="150" height="100" rx="6" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="1.6"/>
+<rect x="63" y="363" width="144" height="94" rx="4" fill="#E8EEF3"/>
+<line x1="68" y1="422.0" x2="202" y2="422.0" stroke="#8AA0B0" stroke-width="1.5"/>
+<circle cx="168.0" cy="393.0" r="10.0" fill="#F0C060"/>
+<text x="135.0" y="452" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">image</text>
+<polyline points="210,410 260,410" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="262" y="375" width="190" height="70" rx="8" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="357.0" y="405.79999999999995" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:14px;font-weight:bold;">image encoder</text>
+<text x="357.0" y="423.99999999999994" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:14px;font-weight:normal;">(CLIP vision tower)</text>
+<rect x="386" y="366" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="415.0" y="379" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<polyline points="452,410 510,410" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="512.0" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="525.8" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="539.5" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="553.2" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="567.0" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="580.8" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="594.5" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="608.2" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="622.0" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="635.8" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="649.5" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="663.2" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="677.0" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="690.8" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="704.5" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="718.2" y="395" width="12.8" height="26" fill="#5B8DB8"/>
+<rect x="511" y="394" width="221" height="28" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="622" y="388" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">one pooled embedding (512-d)</text>
+<polyline points="622,425 622,470" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="512" y="472" width="220" height="60" rx="8" fill="#DCEBF7" stroke="#3A78B5" stroke-width="1.6"/>
+<text x="622.0" y="498.1" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">K learned dimension masks</text>
+<text x="622.0" y="515.0" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:normal;">m₁ … mₖ (one per sub-space)</text>
+<rect x="666" y="463" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="695.0" y="476" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<rect x="820.0" y="372" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="833.8" y="372" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="847.5" y="372" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="861.2" y="372" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="875.0" y="372" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="888.8" y="372" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="902.5" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="916.2" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="930.0" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="943.8" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="957.5" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="971.2" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="985.0" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="998.8" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="1012.5" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="1026.2" y="372" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="819" y="371" width="221" height="24" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="1048" y="387.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">sub-embedding 1  (e ⊙ m1)</text>
+<polyline points="732,502 790,502 790,383 818,383" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="820.0" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="833.8" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="847.5" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="861.2" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="875.0" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="888.8" y="424" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="902.5" y="424" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="916.2" y="424" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="930.0" y="424" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="943.8" y="424" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="957.5" y="424" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="971.2" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="985.0" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="998.8" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="1012.5" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="1026.2" y="424" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="819" y="423" width="221" height="24" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="1048" y="439.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">sub-embedding 2  (e ⊙ m2)</text>
+<polyline points="732,502 790,502 790,435 818,435" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="820.0" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="833.8" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="847.5" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="861.2" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="875.0" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="888.8" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="902.5" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="916.2" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="930.0" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="943.8" y="476" width="12.8" height="22" fill="#D9D9D9"/>
+<rect x="957.5" y="476" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="971.2" y="476" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="985.0" y="476" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="998.8" y="476" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="1012.5" y="476" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="1026.2" y="476" width="12.8" height="22" fill="#5B8DB8"/>
+<rect x="819" y="475" width="221" height="24" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="1048" y="491.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">sub-embedding 3  (e ⊙ m3)</text>
+<polyline points="732,502 790,502 790,487 818,487" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="60" y="600" width="200" height="70" rx="8" fill="#F3F3F3" stroke="#7A7A7A" stroke-width="1.6"/>
+<text x="160.0" y="623.6" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">one caption of the image,</text>
+<text x="160.0" y="639.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">80% of its words hidden</text>
+<text x="160.0" y="654.8000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">[M] dog [M] [M] [M] [M]</text>
+<polyline points="260,635 300,635" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="302" y="600" width="190" height="70" rx="8" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="397.0" y="631.0999999999999" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">text encoder</text>
+<text x="397.0" y="647.9999999999999" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:normal;">(CLIP text tower)</text>
+<rect x="426" y="591" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="455.0" y="604" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<polyline points="492,635 820,635" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<text x="656" y="628" text-anchor="middle" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;font-style:italic;">visible words + text tokens</text>
+<rect x="822" y="592" width="240" height="86" rx="8" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="942.0" y="615.8000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">caption decoder</text>
+<text x="942.0" y="631.4000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">conditioned on sub-embedding k</text>
+<text x="942.0" y="647.0000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">rebuilds the hidden words</text>
+<text x="942.0" y="662.6" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">→ one reconstruction score per k</text>
+<rect x="996" y="583" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="1025.0" y="596" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<polyline points="1228,383 1268,383 1268,560 942,560 942,590" fill="none" stroke="#222222" stroke-width="1.0" marker-end="url(#ah)" stroke-dasharray="6,5"/>
+<polyline points="1228,435 1268,435 1268,560 942,560 942,590" fill="none" stroke="#222222" stroke-width="1.0" marker-end="url(#ah)" stroke-dasharray="6,5"/>
+<polyline points="1228,487 1268,487 1268,560 942,560 942,590" fill="none" stroke="#222222" stroke-width="1.0" marker-end="url(#ah)" stroke-dasharray="6,5"/>
+<text x="1010" y="553" text-anchor="middle" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:normal;font-style:italic;">each sub-embedding conditions the decoder in turn</text>
+<polyline points="1062,635 1120,635" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="1122" y="592" width="330" height="86" rx="8" fill="#DCEBF7" stroke="#3A78B5" stroke-width="1.6"/>
+<text x="1287.0" y="615.8000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">assignment</text>
+<text x="1287.0" y="631.4000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">the caption goes to the sub-space whose</text>
+<text x="1287.0" y="647.0000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">decoder rebuilds it best (Hungarian over</text>
+<text x="1287.0" y="662.6" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">the image’s captions × K sub-spaces)</text>
+<polyline points="1287,678 1287,702" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="1122" y="704" width="330" height="70" rx="8" fill="#E3F2E1" stroke="#3C8C3C" stroke-width="1.6"/>
+<text x="1287.0" y="727.6" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">contrastive loss on the assigned pair</text>
+<text x="1287.0" y="743.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">image sub-embedding k ↔ caption embedding</text>
+<text x="1287.0" y="758.8000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">under the same mask mₖ</text>
+<rect x="560" y="704" width="540" height="70" rx="8" fill="#FFFFFF" stroke="#9A9A9A" stroke-width="1.6" stroke-dasharray="7,5"/>
+<text x="830.0" y="727.6" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">retrieval: max over k of the sub-space similarities</text>
+<text x="830.0" y="743.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">control the check names: one vector of the same total size, and random fixed masks</text>
+<text x="830.0" y="758.8000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">(Li and Jurafsky: multi-sense gains can come from capacity alone)</text>
+<rect x="40" y="820" width="1430" height="440" rx="12" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.2"/>
+<text x="54" y="844" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:17px;font-weight:bold;">Reading (b): K embeddings, each from a different masked view of the image</text>
+<rect x="60" y="870" width="150" height="100" rx="6" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="1.6"/>
+<rect x="63" y="873" width="144" height="94" rx="4" fill="#E8EEF3"/>
+<line x1="68" y1="932.0" x2="202" y2="932.0" stroke="#8AA0B0" stroke-width="1.5"/>
+<circle cx="168.0" cy="903.0" r="10.0" fill="#F0C060"/>
+<text x="135.0" y="962" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">image</text>
+<polyline points="210,920 260,920" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="262" y="885" width="190" height="70" rx="8" fill="#DCEBF7" stroke="#3A78B5" stroke-width="1.6"/>
+<text x="357.0" y="916.0999999999999" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">K patch subsets</text>
+<text x="357.0" y="932.9999999999999" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:normal;">(masked views, e.g. 25% each)</text>
+<polyline points="452,920 480,920 480,888 508,888" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="510.0" y="858.0" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="518.6" y="858.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="858.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="858.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="858.0" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="552.9" y="858.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="858.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="866.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="866.6" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="527.1" y="866.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="866.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="866.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="866.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="866.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="875.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="875.1" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="527.1" y="875.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="875.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="875.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="875.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="875.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="883.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="883.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="883.7" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="883.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="883.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="883.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="883.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="892.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="892.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="892.3" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="892.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="892.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="892.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="892.3" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="510.0" y="900.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="900.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="900.9" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="900.9" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="544.3" y="900.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="900.9" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="561.4" y="900.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="909.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="518.6" y="909.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="527.1" y="909.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="909.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="909.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="909.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="561.4" y="909.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="509" y="857" width="61" height="61" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="540.0" y="932" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">view 1</text>
+<polyline points="452,920 480,920 480,970 508,970" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="510.0" y="940.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="940.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="940.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="940.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="940.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="940.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="940.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="948.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="948.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="948.6" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="948.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="948.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="948.6" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="561.4" y="948.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="957.1" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="518.6" y="957.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="957.1" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="957.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="957.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="957.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="957.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="965.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="965.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="965.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="965.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="965.7" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="552.9" y="965.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="965.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="974.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="974.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="974.3" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="974.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="974.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="974.3" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="561.4" y="974.3" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="510.0" y="982.9" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="518.6" y="982.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="982.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="982.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="982.9" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="552.9" y="982.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="982.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="991.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="991.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="991.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="991.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="991.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="552.9" y="991.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="561.4" y="991.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="509" y="939" width="61" height="61" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="540.0" y="1014" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">view 2</text>
+<polyline points="452,920 480,920 480,1052 508,1052" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="510.0" y="1022.0" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="518.6" y="1022.0" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="527.1" y="1022.0" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="1022.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="1022.0" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="552.9" y="1022.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="1022.0" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="1030.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="1030.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="1030.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="1030.6" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="544.3" y="1030.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="1030.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="1030.6" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="1039.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="1039.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="1039.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="1039.1" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="544.3" y="1039.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="1039.1" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="561.4" y="1039.1" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="1047.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="1047.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="1047.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="1047.7" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="544.3" y="1047.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="1047.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="1047.7" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="1056.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="1056.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="1056.3" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="1056.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="1056.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="1056.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="1056.3" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="1064.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="518.6" y="1064.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="1064.9" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="535.7" y="1064.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="1064.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="1064.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="561.4" y="1064.9" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="510.0" y="1073.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="518.6" y="1073.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="527.1" y="1073.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="535.7" y="1073.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="544.3" y="1073.4" width="7.6" height="7.6" fill="#EDEDED"/>
+<rect x="552.9" y="1073.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="561.4" y="1073.4" width="7.6" height="7.6" fill="#9DB9D0"/>
+<rect x="509" y="1021" width="61" height="61" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="540.0" y="1096" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">view 3</text>
+<polyline points="570,888 610,888 610,920" fill="none" stroke="#222222" stroke-width="1.2"/>
+<polyline points="570,970 610,970 610,920" fill="none" stroke="#222222" stroke-width="1.2"/>
+<polyline points="570,1052 610,1052 610,920" fill="none" stroke="#222222" stroke-width="1.2"/>
+<polyline points="610,920 640,920" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="642" y="885" width="190" height="70" rx="8" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="737.0" y="916.0999999999999" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">image encoder</text>
+<text x="737.0" y="932.9999999999999" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:normal;">(shared, one pass per view)</text>
+<rect x="766" y="876" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="795.0" y="889" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<polyline points="832,920 860,920 860,880 888,880" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="890.0" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="901.2" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="912.5" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="923.8" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="935.0" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="946.2" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="957.5" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="968.8" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="980.0" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="991.2" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="1002.5" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="1013.8" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="1025.0" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="1036.2" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="1047.5" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="1058.8" y="870" width="10.2" height="20" fill="#5B8DB8"/>
+<rect x="889" y="869" width="181" height="22" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="1078" y="884.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">view embedding 1</text>
+<polyline points="832,920 860,920 860,932 888,932" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="890.0" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="901.2" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="912.5" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="923.8" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="935.0" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="946.2" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="957.5" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="968.8" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="980.0" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="991.2" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="1002.5" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="1013.8" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="1025.0" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="1036.2" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="1047.5" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="1058.8" y="922" width="10.2" height="20" fill="#6AA06A"/>
+<rect x="889" y="921" width="181" height="22" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="1078" y="936.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">view embedding 2</text>
+<polyline points="832,920 860,920 860,984 888,984" fill="none" stroke="#222222" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="890.0" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="901.2" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="912.5" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="923.8" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="935.0" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="946.2" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="957.5" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="968.8" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="980.0" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="991.2" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="1002.5" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="1013.8" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="1025.0" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="1036.2" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="1047.5" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="1058.8" y="974" width="10.2" height="20" fill="#B07A3C"/>
+<rect x="889" y="973" width="181" height="22" rx="2" fill="none" stroke="#7A7A7A" stroke-width="1"/>
+<text x="1078" y="988.0" text-anchor="start" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">view embedding 3</text>
+<rect x="60" y="1080" width="200" height="70" rx="8" fill="#F3F3F3" stroke="#7A7A7A" stroke-width="1.6"/>
+<text x="160.0" y="1103.6000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">one caption of the image,</text>
+<text x="160.0" y="1119.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">80% of its words hidden</text>
+<text x="160.0" y="1134.8000000000002" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">[M] dog [M] [M] [M] [M]</text>
+<polyline points="260,1115 300,1115" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="302" y="1080" width="190" height="70" rx="8" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="397.0" y="1111.1" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:bold;">text encoder</text>
+<text x="397.0" y="1128.0" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:13px;font-weight:normal;">(CLIP text tower)</text>
+<rect x="426" y="1071" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="455.0" y="1084" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<polyline points="492,1115 890,1115" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<text x="690" y="1108" text-anchor="middle" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;font-style:italic;">visible words + text tokens</text>
+<rect x="892" y="1072" width="240" height="86" rx="8" fill="#FDE7CF" stroke="#E07B20" stroke-width="1.6"/>
+<text x="1012.0" y="1095.8" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">caption decoder</text>
+<text x="1012.0" y="1111.3999999999999" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">conditioned on view embedding k</text>
+<text x="1012.0" y="1127.0" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">rebuilds the hidden words</text>
+<text x="1012.0" y="1142.6" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">→ one reconstruction score per k</text>
+<rect x="1066" y="1063" width="58" height="18" rx="9" fill="#E07B20" stroke="#E07B20" stroke-width="1.6"/>
+<text x="1095.0" y="1076" text-anchor="middle" fill="#FFFFFF" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:bold;">trained</text>
+<polyline points="1200,880 1230,880 1230,1040 1012,1040 1012,1070" fill="none" stroke="#222222" stroke-width="1.0" marker-end="url(#ah)" stroke-dasharray="6,5"/>
+<polyline points="1200,932 1230,932 1230,1040 1012,1040 1012,1070" fill="none" stroke="#222222" stroke-width="1.0" marker-end="url(#ah)" stroke-dasharray="6,5"/>
+<polyline points="1200,984 1230,984 1230,1040 1012,1040 1012,1070" fill="none" stroke="#222222" stroke-width="1.0" marker-end="url(#ah)" stroke-dasharray="6,5"/>
+<text x="1012" y="1033" text-anchor="middle" fill="#444444" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:11px;font-weight:normal;font-style:italic;">each view conditions the decoder in turn</text>
+<polyline points="1132,1115 1250,1115" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="1252" y="1072" width="200" height="86" rx="8" fill="#DCEBF7" stroke="#3A78B5" stroke-width="1.6"/>
+<text x="1352.0" y="1103.6000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">assignment</text>
+<text x="1352.0" y="1119.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">the reading goes to the view</text>
+<text x="1352.0" y="1134.8000000000002" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">whose decoder rebuilds it best</text>
+<polyline points="1352,1158 1352,1180" fill="none" stroke="#222222" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect x="1122" y="1182" width="330" height="66" rx="8" fill="#E3F2E1" stroke="#3C8C3C" stroke-width="1.6"/>
+<text x="1287.0" y="1203.6000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">contrastive loss per view with its assigned caption</text>
+<text x="1287.0" y="1219.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">(needed: views trained by pixels alone collapse,</text>
+<text x="1287.0" y="1234.8000000000002" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">our D2 finding and U-MAE)</text>
+<rect x="560" y="1182" width="540" height="66" rx="8" fill="#FFFFFF" stroke="#9A9A9A" stroke-width="1.6" stroke-dasharray="7,5"/>
+<text x="830.0" y="1203.6000000000001" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">retrieval: max over the K views</text>
+<text x="830.0" y="1219.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">risk the check names: a view encodes where in the image, not which reading;</text>
+<text x="830.0" y="1234.8000000000002" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:normal;">comparator: attentive views with multi-positive InfoNCE (A-CLIP style)</text>
+<rect x="40" y="1278" width="1430" height="40" rx="8" fill="#FFFFFF" stroke="#9A9A9A" stroke-width="1.6" stroke-dasharray="7,5"/>
+<text x="755.0" y="1302.2" text-anchor="middle" fill="#222222" style="font-family:Lato, DejaVu Sans, sans-serif;font-size:12px;font-weight:bold;">Shared knob in both readings: the masking ratio. DML (NeurIPS 2022): a fully masked caption decoder with Hungarian assignment keeps 29 of 64 codes in use; partial or no masking keeps 5 or 6. Shared risk: the K readings collapse into one.</text></svg>
