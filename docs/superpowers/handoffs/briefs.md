@@ -16,3 +16,11 @@
 - Handoff: docs/superpowers/handoffs/2026-10-26-r1-decide-2-handoff.md
 - New chat: tab 'r1 decide 2', session 5b160409-67fc-4145-be62-772332135229
 
+[brief] MultiMAE: r1 decide 2 -> r1 decide 3 (2026-11-22 02:19 Amsterdam)
+- Done: the user confirmed the figures of idea 1 (masked captions under blends) and idea 2 (PVSE with masked sub-spaces) as their own framing; our recommendation for B was given (idea 2, the masked decoder as the assignment signal, blends as its probe); the Ducktor idea evaluation of both ideas is written and indexed.
+- State: both ideas "Accept with Revisions"; idea 2 rated the better bet by us and by the evaluation. B is not decided.
+- Next: the user answers decision B, the role of idea 1 and whether to go on to the grill; then the grill (step 5) and the spec (step 6).
+- Blocked: nothing; …
+- Handoff: docs/superpowers/handoffs/2026-11-22-r1-decide-3-handoff.md
+- New chat: tab 'r1 decide 3', session 8dfc8d19-97d7-407e-85ca-f637e27ef356
+
