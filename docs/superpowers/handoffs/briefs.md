@@ -24,3 +24,11 @@
 - Handoff: docs/superpowers/handoffs/2026-11-22-r1-decide-3-handoff.md
 - New chat: tab 'r1 decide 3', session 8dfc8d19-97d7-407e-85ca-f637e27ef356
 
+[brief] MultiMAE: r1 decide 3 -> r1 decide 4 (2026-11-23 16:03 Amsterdam)
+- Done: second research round (10 Fable agents): six literature and data reports, four brainstorm agents, a private merge of the candidates.
+- State: decision B still open; both original ideas look weak as framed (agents' estimates); several new candidate clusters exist, none evaluated yet.
+- Next: ask the user the open choices, then evaluate the top candidates (novelty, idea-evaluator, devil's advocate) and brainstorm.
+- Blocked: nothing; the chat needs the user.
+- Handoff: docs/superpowers/handoffs/2026-11-23-r1-decide-4-handoff.md
+- New chat: tab 'r1 decide 4', session 46405f28-64a9-4bad-9c53-96f1d704b553
+
