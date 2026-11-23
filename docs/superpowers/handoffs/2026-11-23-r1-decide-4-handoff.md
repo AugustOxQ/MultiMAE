@@ -1,7 +1,7 @@
 # Handoff: r1 decide 4 evaluates the candidate ideas of the second research round, then brainstorms with the user and takes decision B
 
 ## Brief
-- Done: second research round (10 Fable agents): six literature and data reports, four brainstorm agents, a private merge of the candidates.
+- Done: second research round (11 Fable agents): seven literature and data reports, four brainstorm agents, a private merge of the candidates.
 - State: decision B still open; both original ideas look weak as framed (agents' estimates); several new candidate clusters exist, none evaluated yet.
 - Next: ask the user the open choices, then evaluate the top candidates (novelty, idea-evaluator, devil's advocate) and brainstorm.
 - Blocked: nothing; the chat needs the user.
@@ -47,6 +47,6 @@ Skills: none for the evaluation step (the Ducktor skills are used by path, `~/.c
 
 ## 6. State at handoff
 
-- Running: nothing (all ten agents finished).
+- Running: nothing (all eleven agents finished).
 - Uncommitted: the seven reports listed in section 1.3 and nothing else; `.scratch/` is gitignored.
 - On disk over 1 GB: unchanged since 2026-10-26 (`res/coco/multimae/ml_improve` 18 GB, `res/artelingo/hb_encoded` 1.9 GB, `res/coco/diagnostics` 1.4 GB; ledger rows of 2026-10-26). New small item: the session scratchpad, about 450 MB in `/tmp`.
