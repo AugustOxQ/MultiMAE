@@ -32,3 +32,11 @@
 - Handoff: docs/superpowers/handoffs/2026-11-23-r1-decide-4-handoff.md
 - New chat: tab 'r1 decide 4', session 46405f28-64a9-4bad-9c53-96f1d704b553
 
+[brief] MultiMAE: r1 decide 4 -> r1 ppt (2026-11-25 10:37 Amsterdam)
+- Done: the evaluation of the candidate ideas is prepared, not started; it waits for the user's go in r1 decide 4.
+- State: decision B open; results so far are in the reports of 2026-10-03 to 2026-10-08, the candidates in private notes.
+- Next: write the weekly report and slides the way CoSiR does, as drafts for the user.
+- Blocked: nothing; the chat needs the user for the meeting date and for approval of the drafts.
+- Handoff: docs/superpowers/handoffs/2026-11-25-r1-ppt-handoff.md
+- New chat: tab 'r1 ppt', session 318a20ca-0a9c-4052-aab1-766374e91879
+

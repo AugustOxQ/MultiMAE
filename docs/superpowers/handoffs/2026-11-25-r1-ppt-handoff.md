@@ -48,7 +48,7 @@ Skills: none. Subagents and Codex as `weekly-report.md`, "Process", says.
 - The seven untracked reports of 2026-11-23 in `docs/reports/` are not this chat's: do not add, move or index them.
 - Candidate text goes into no web query.
 - The finding "visible words steer the decoder" (2026-10-08) now reads mostly as the text prior (preliminary check of 2026-11-23). Do not repeat the old wording alone.
-- `*.pptx` is gitignored. Build the deck with `~/.claude/templates/build_weekly_slides.py <slides.md>` in this project's env (`/root/miniconda3/envs/MultiMAE/bin/python`); check first that the env has `python-pptx`.
+- `*.pptx` is gitignored. Build the deck with `~/.claude/templates/build_weekly_slides.py <slides.md>` in this project's env (`/root/miniconda3/envs/MultiMAE/bin/python`); `python-pptx` is missing from it (checked 2026-11-25): install it there first.
 - Each figure is looked at by the writer before the draft goes to the user.
 
 ## 6. State at handoff
