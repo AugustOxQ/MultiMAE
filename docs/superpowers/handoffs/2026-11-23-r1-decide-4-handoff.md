@@ -23,6 +23,7 @@ Skills: none for the evaluation step (the Ducktor skills are used by path, `~/.c
 
 - 2026-11-23: a new round of broader deep research and idea evaluation, using Ducktor's skills or ARS, on **Fable 5.2 agents at xhigh effort**, cost no object; then a brainstorm for a real, novel, applicable idea. This is the user's standing yes for Fable in this round's research, evaluation and brainstorm agents.
 - 2026-11-23: hard limit on GPU: "I don't have a lot of GPU accesses so super heavy training would not be possible, or is possible but too slow to verify the claim." Every idea carries a compute tier (T0 to T3, in the digest). The 60 GPU-hour line for T2 is an agent assumption the user has not confirmed.
+- 2026-11-25 (answers given in the tab r1 decide 3; the full record, with what was checked, is at the end of `.scratch/r1_round2/synthesis_candidates.md`): (a) answered, see the private notes; (b) unpublished ideas live in `docs/paper/`, its own private git repo (`MultiMAE-paper`, set up 2026-11-25; this repo ignores `docs/paper/`); (c) compute: 3 A6000 on one node, full time, so 72 GPU-hours per day. This replaces the 60 GPU-hour line. The node is not reserved at the moment (`cluster status`, 2026-11-25).
 - 2026-11-22 and before: see the earlier handoff's section 2 (the framing of ideas 1 and 2).
 
 ## 3. Where things stand
@@ -34,7 +35,7 @@ Skills: none for the evaluation step (the Ducktor skills are used by path, `~/.c
 
 ## 4. Open points for the next step
 
-- **Key, ask first (they change what is worth evaluating):** (a) the question about earlier work in the "Open choices" list of `.scratch/r1_round2/synthesis_candidates.md`; (b) where unpublished ideas may live, since the repo is public (nothing new of this round has been committed); (c) the confirmed compute budget (GPU-hours per week, and whether DAS6 is expected).
+- **Answered on 2026-11-25 (section 2); still open with the user: whether this repo itself becomes private, and the list of candidates to evaluate.** As asked: (a) the question about earlier work in the "Open choices" list of `.scratch/r1_round2/synthesis_candidates.md`; (b) where unpublished ideas may live, since the repo is public (nothing new of this round has been committed); (c) the confirmed compute budget (GPU-hours per week, and whether DAS6 is expected).
 - Then, wave 3 (agent work, Fable xhigh by the user's order): pick 6 to 8 candidates from the synthesis (include the strongest parts of ideas 1 and 2), one agent per candidate: fresh novelty search and the Ducktor idea-evaluator (`library/idea-evaluator/SKILL.md`, by path, inputs = the candidate's text from the files, the digest, the reports). Then ARS devil's advocate (`~/.claude/plugins/cache/academic-research-skills/academic-research-skills/3.23.0/deep-research/agents/devils_advocate_agent.md`) on the top three, and one source-verification pass over the key citations.
 - Then the brainstorm with the user, and **decision B** (answer-first, with one line of why), the idea(s) not chosen go to "Parked ideas".
 - **Minor:** write the direction log entry and the index rows of the new reports at the next wrap-up (nothing new of 2026-11-23 is in `reports_sum.md` yet); the user-read report for the evaluation of 2026-11-22 is still not written.
